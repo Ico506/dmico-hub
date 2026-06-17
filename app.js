@@ -80,11 +80,16 @@ function openModule(id) {
   );
 
   el("module-eyebrow").textContent = m.label;
-  el("stage-body").innerHTML =
-    `<div class="empty">
-       <h2>${m.label}</h2>
-       <p>${m.blurb || "Coming soon."}</p>
-     </div>`;
+  const body = el("stage-body");
+  if (id === "research" && window.renderResearch) {
+    window.renderResearch(body, sb);
+  } else {
+    body.innerHTML =
+      `<div class="empty">
+         <h2>${m.label}</h2>
+         <p>${m.blurb || "Coming soon."}</p>
+       </div>`;
+  }
 }
 
 /* ── Auth ────────────────────────────────────────────────────── */

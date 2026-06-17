@@ -356,3 +356,154 @@ input, button { font-family: inherit; }
   .rail-foot { width: auto; }
   .stage { padding: 28px 22px; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Research module
+   ───────────────────────────────────────────────────────────── */
+
+.r-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--paper-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px;
+  width: fit-content;
+  margin-bottom: 22px;
+}
+.r-tab {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.r-tab:hover { color: var(--ink); }
+.r-tab.current { background: var(--surface-2); color: var(--ink); box-shadow: var(--shadow); }
+.r-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--jade-wash); }
+
+.r-btn { width: auto; margin: 0; }
+
+.r-searchbar, .r-libbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.r-searchbar input, .r-libbar input {
+  flex: 1;
+  padding: 11px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-size: 15px;
+}
+.r-searchbar input:focus-visible, .r-libbar input:focus-visible {
+  outline: none;
+  border-color: var(--jade);
+  box-shadow: 0 0 0 3px var(--jade-wash);
+}
+
+.r-status { color: var(--ink-soft); font-size: 13px; min-height: 18px; margin: 0 0 14px; }
+
+.r-list { display: flex; flex-direction: column; gap: 12px; }
+
+.r-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+.r-title {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.35;
+  margin: 0 0 6px;
+}
+.r-meta { color: var(--ink-soft); font-size: 13px; margin-bottom: 10px; }
+.r-abstract { color: var(--ink-soft); font-size: 13.5px; line-height: 1.5; margin: 0 0 12px; }
+
+.r-save-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.r-tags-in {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.r-tags-in:focus-visible { outline: none; border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-wash); }
+
+.r-link, .r-mini {
+  font-size: 13px;
+  color: var(--jade-deep);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.r-link:hover, .r-mini:hover { background: var(--jade-wash); border-color: var(--jade); }
+
+.r-card-tags, .r-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.r-card-tags { margin-bottom: 12px; }
+.r-tag {
+  font-size: 11px;
+  color: var(--jade-deep);
+  background: var(--jade-wash);
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+.r-chips { margin-bottom: 16px; }
+.r-chip {
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 5px 13px;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+.r-chip:hover { color: var(--ink); }
+.r-chip.on { background: var(--jade); color: #fff; border-color: var(--jade); }
+
+.r-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.r-del:hover { background: rgba(154, 91, 83, 0.12); border-color: var(--clay); color: var(--clay); }
+
+.r-form { max-width: 520px; display: flex; flex-direction: column; gap: 14px; }
+.r-row2 { display: flex; gap: 14px; }
+.r-row2 .r-field { flex: 1; }
+.r-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+.r-field input {
+  width: 100%;
+  padding: 10px 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-size: 14.5px;
+}
+.r-field input:focus-visible { outline: none; border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-wash); }
+
+@media (max-width: 600px) {
+  .r-row2 { flex-direction: column; }
+}
