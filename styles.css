@@ -619,3 +619,85 @@ input, button { font-family: inherit; }
   gap: 12px;
   margin-bottom: 14px;
 }
+
+/* ── Study plan display (.s-plan-*) ────────────────────────── */
+
+.s-plan {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.s-plan-summary {
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 0 0 12px;
+}
+
+.s-plan-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.s-session {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--paper);
+  border-radius: 10px;
+  font-size: 0.83rem;
+  flex-wrap: wrap;
+}
+
+.s-session-label {
+  flex: none;
+  width: 48px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.s-session-body {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.s-session-type {
+  flex: none;
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  cursor: default;
+}
+
+.s-type-learn    { background: var(--accent-wash);           color: var(--accent-deep); border-color: transparent; }
+.s-type-review   { background: rgba(196, 102, 31, 0.12);     color: var(--lantern);     border-color: transparent; }
+.s-type-practice { background: rgba(138, 63, 30, 0.14);      color: var(--clay);        border-color: transparent; }
+
+.s-session-hrs {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.s-plan-meta {
+  margin: 10px 0 0;
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.01em;
+}
+
+.s-plan-thinking {
+  padding: 8px 0;
+  animation: pulse-text 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}

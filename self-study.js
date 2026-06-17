@@ -1,8 +1,8 @@
 /* ─────────────────────────────────────────────────────────────
-   dmico life os — Self-study module (v1)
+   dmico life os — Self-study module (v2)
    Two halves:
-     Plan  — track upcoming exams with a live countdown. (The balanced
-             study-plan generator gets wired in the next build.)
+     Plan  — track upcoming exams with a live countdown, plus a
+             Gemma-powered spaced-repetition study-plan generator.
      Focus — a work/break countdown timer with ratio presets + custom.
    ───────────────────────────────────────────────────────────── */
 
@@ -97,39 +97,121 @@
     if (error) { console.error(error); list.innerHTML = `<p class="r-status">Couldn't load your exams.</p>`; return; }
     const exams = data || [];
     if (!exams.length) {
-      list.innerHTML = `<div class="empty"><h2>No exams yet</h2><p>Add one above and it shows up here with a live countdown. The balanced study-plan generator arrives in the next build.</p></div>`;
+      list.innerHTML = `<div class="empty"><h2>No exams yet</h2><p>Add one above and it shows up here with a live countdown. Hit "Generate plan" to get a spaced-repetition schedule from Gemma.</p></div>`;
       return;
     }
     list.innerHTML = "";
-    exams.forEach((x) => {
-      const n = daysUntil(x.exam_date);
-      const urgency = n === null ? "" : n < 0 ? "past" : n <= 7 ? "soon" : "ok";
-      const card = document.createElement("div");
-      card.className = "r-card";
-      card.innerHTML = `
-        <div class="s-exam-top">
-          <h3 class="r-title">${esc(x.title)}</h3>
-          <span class="s-count ${urgency}">${countdownLabel(x.exam_date)}</span>
-        </div>
-        <div class="r-meta">${x.exam_date ? esc(x.exam_date) : "no date"}${x.hours_per_day ? `  ·  ${x.hours_per_day}h/day` : ""}</div>
-        ${x.topics ? `<p class="r-abstract">${esc(x.topics)}</p>` : ""}
-        <p class="s-soon">Balanced study plan: coming in the next build.</p>
-        <div class="r-actions"><button class="r-mini r-del">Remove</button></div>`;
-      card.querySelector(".r-del").addEventListener("click", async () => {
-        if (!window.confirm(`Remove "${x.title}"?`)) return;
-        const { error: e2 } = await SB.from("study_exams").delete().eq("id", x.id);
-        if (e2) { console.error(e2); alert("Couldn't remove it."); return; }
-        drawExams();
-      });
-      list.appendChild(card);
+    exams.forEach((x) => buildExamCard(x, list));
+  }
+
+  function buildExamCard(x, container) {
+    const n = daysUntil(x.exam_date);
+    const urgency = n === null ? "" : n < 0 ? "past" : n <= 7 ? "soon" : "ok";
+    const hasPlan = x.plan && x.plan.sessions && x.plan.sessions.length > 0;
+
+    const card = document.createElement("div");
+    card.className = "r-card";
+    card.dataset.examId = x.id;
+
+    card.innerHTML = `
+      <div class="s-exam-top">
+        <h3 class="r-title">${esc(x.title)}</h3>
+        <span class="s-count ${urgency}">${countdownLabel(x.exam_date)}</span>
+      </div>
+      <div class="r-meta">${x.exam_date ? esc(x.exam_date) : "no date"}${x.hours_per_day ? `  &middot;  ${x.hours_per_day}h/day` : ""}</div>
+      ${x.topics ? `<p class="r-abstract">${esc(x.topics)}</p>` : ""}
+      <div class="s-plan-area">${hasPlan ? renderPlanHTML(x.plan) : ""}</div>
+      <div class="r-actions">
+        <button class="r-mini s-gen-btn">${hasPlan ? "Regenerate plan" : "Generate plan"}</button>
+        <button class="r-mini r-del">Remove</button>
+      </div>`;
+
+    card.querySelector(".s-gen-btn").addEventListener("click", () => generatePlan(x, card));
+    card.querySelector(".r-del").addEventListener("click", async () => {
+      if (!window.confirm(`Remove "${x.title}"?`)) return;
+      const { error } = await SB.from("study_exams").delete().eq("id", x.id);
+      if (error) { console.error(error); alert("Couldn't remove it."); return; }
+      drawExams();
     });
+
+    container.appendChild(card);
+  }
+
+  // ── Study plan generation ──────────────────────────────────
+  async function generatePlan(exam, card) {
+    const btn  = card.querySelector(".s-gen-btn");
+    const area = card.querySelector(".s-plan-area");
+
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+    area.innerHTML = `<p class="r-status s-plan-thinking">Asking Gemma to map out your schedule…</p>`;
+
+    const { data, error } = await SB.functions.invoke("study-plan", {
+      body: {
+        title:        exam.title,
+        exam_date:    exam.exam_date,
+        hours_per_day: exam.hours_per_day,
+        topics:       exam.topics,
+      },
+    });
+
+    if (error || (data && data.error)) {
+      const msg = (data && data.error) ? data.error : String(error);
+      console.error("study-plan error:", msg);
+      area.innerHTML = `<p class="r-status" style="color:var(--clay)">Plan generation failed. ${esc(msg)}</p>`;
+      btn.disabled = false;
+      btn.textContent = "Try again";
+      return;
+    }
+
+    // Persist to Supabase.
+    const { error: writeErr } = await SB.from("study_exams")
+      .update({ plan: data })
+      .eq("id", exam.id);
+    if (writeErr) console.warn("Couldn't save plan to Supabase:", writeErr);
+
+    area.innerHTML = renderPlanHTML(data);
+    btn.disabled = false;
+    btn.textContent = "Regenerate plan";
+  }
+
+  // ── Plan HTML renderer ─────────────────────────────────────
+  function renderPlanHTML(plan) {
+    if (!plan) return "";
+    const sessions = Array.isArray(plan.sessions) ? plan.sessions : [];
+    if (!sessions.length) return "";
+
+    const rows = sessions.map((s) => {
+      const typeClass = `s-type-${esc(s.type || "learn")}`;
+      return `
+        <div class="s-session">
+          <span class="s-session-label">${esc(s.label || "")}</span>
+          <div class="s-session-body">
+            <strong>${esc(s.topic || "")}</strong>${s.task ? ` &mdash; ${esc(s.task)}` : ""}
+          </div>
+          <span class="r-chip s-session-type ${typeClass}">${esc(s.type || "learn")}</span>
+          <span class="s-session-hrs">${s.hours != null ? `${s.hours}h` : ""}</span>
+        </div>`;
+    }).join("");
+
+    const genDate = plan.generated_at
+      ? new Date(plan.generated_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+      : null;
+    const model = plan.generated_model || null;
+
+    return `
+      <div class="s-plan">
+        ${plan.summary ? `<p class="s-plan-summary">${esc(plan.summary)}</p>` : ""}
+        <div class="s-plan-sessions">${rows}</div>
+        ${genDate ? `<p class="s-plan-meta">Generated ${genDate}${model ? ` via ${esc(model)}` : ""}</p>` : ""}
+      </div>`;
   }
 
   // ── Focus tab ──────────────────────────────────────────────
   const PRESETS = [
-    { label: "Classic 25 / 5", work: 25, brk: 5 },
-    { label: "Deep 50 / 10", work: 50, brk: 10 },
-    { label: "Long 90 / 20", work: 90, brk: 20 },
+    { label: "Classic 25 / 5",  work: 25, brk: 5  },
+    { label: "Deep 50 / 10",    work: 50, brk: 10 },
+    { label: "Long 90 / 20",    work: 90, brk: 20 },
   ];
   let timer = { work: 25, brk: 5, phase: "focus", remaining: 25 * 60, running: false, id: null, sessions: 0 };
 
