@@ -701,3 +701,86 @@ input, button { font-family: inherit; }
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.45; }
 }
+
+/* ── Hygiene module (.h-*) ─────────────────────────────────── */
+
+.h-addform {
+  margin-bottom: 18px;
+}
+
+/* Chores */
+
+.h-chore-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.h-chore-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.h-chore-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.h-since {
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.h-since.ok   { color: var(--accent-deep); }
+.h-since.soon { color: var(--lantern); }
+.h-since.past { color: var(--clay); }
+
+.h-cat {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  border-color: transparent;
+}
+
+/* Supplies */
+
+.h-product-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.h-product-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.h-product-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.h-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.h-status-ok  { background: var(--accent-wash); color: var(--accent-deep); }
+.h-status-low { background: rgba(196, 102, 31, 0.14); color: var(--lantern); }
+.h-status-out { background: rgba(138, 63, 30, 0.16); color: var(--clay); }

@@ -23,7 +23,8 @@ const MODULES = [
     blurb: "Your reference library and paper discovery live here. The next build wires up search across Semantic Scholar, one-tap save to your library, tag filtering by your themes, and BibTeX export for writing." },
   { id: "selfstudy", label: "Self-study", lit: true,
     blurb: "Track exams with a live countdown and run focus sessions. The balanced study-plan generator lands in the next build." },
-  { id: "hygiene",   label: "Hygiene",    lit: false },
+  { id: "hygiene",   label: "Hygiene",    lit: true,
+    blurb: "Cleaning timers and supply inventory." },
   { id: "gamedev",   label: "Game Dev",   lit: false },
   { id: "finance",   label: "Finance",    lit: false },
 ];
@@ -92,6 +93,8 @@ function openModule(id) {
     window.renderResearch(body, sb);
   } else if (id === "selfstudy" && window.renderSelfStudy) {
     window.renderSelfStudy(body, sb);
+  } else if (id === "hygiene" && window.renderHygiene) {
+    window.renderHygiene(body, sb);
   } else {
     body.innerHTML =
       `<div class="empty">
