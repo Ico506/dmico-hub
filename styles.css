@@ -1,32 +1,34 @@
 /* ─────────────────────────────────────────────────────────────
-   dmico life os — shell theme
-   Palette: misted cool paper + Haku jade river + a warm lantern glow.
+   dmico life os: shell theme
+   Palette: warm earthy. Cornsilk paper, deep-brown ink, olive-green
+   accent, alloy-orange lantern glow. The saturated tones are spent only
+   on actions and the lantern so the cream stays calm rather than muddy.
    Type: Zen Maru Gothic (rounded display) + Zen Kaku Gothic New (body).
    Signature: modules are paper lanterns. Lit = ready, unlit = not yet.
    ───────────────────────────────────────────────────────────── */
 
 :root {
-  --paper: #E7EBE7;
-  --paper-deep: #DDE2DD;
-  --surface: #F4F6F3;
-  --surface-2: #FBFCFA;
-  --ink: #283531;
-  --ink-soft: #647069;
-  --ink-faint: #95A099;
-  --line: #D3D9D3;
+  --paper: #F4EBD2;
+  --paper-deep: #EADCBD;
+  --surface: #FEFAE0;
+  --surface-2: #FFFDF4;
+  --ink: #45301E;
+  --ink-soft: #7C6A4F;
+  --ink-faint: #A89A7C;
+  --line: #E3D7BA;
 
-  --jade: #4E8C7D;
-  --jade-deep: #3C6E62;
-  --jade-wash: rgba(78, 140, 125, 0.12);
+  --accent: #5F6F52;
+  --accent-deep: #4B5840;
+  --accent-wash: rgba(95, 111, 82, 0.14);
 
-  --lantern: #E8B777;
-  --lantern-glow: rgba(232, 183, 119, 0.40);
+  --lantern: #C4661F;
+  --lantern-glow: rgba(196, 102, 31, 0.38);
 
-  --clay: #9A5B53;
+  --clay: #8A3F1E;
 
   --radius: 14px;
   --radius-lg: 22px;
-  --shadow: 0 1px 2px rgba(40, 53, 49, 0.05), 0 8px 24px rgba(40, 53, 49, 0.06);
+  --shadow: 0 1px 2px rgba(69, 48, 30, 0.05), 0 8px 24px rgba(69, 48, 30, 0.07);
 
   --display: "Zen Maru Gothic", system-ui, sans-serif;
   --body: "Zen Kaku Gothic New", system-ui, sans-serif;
@@ -53,8 +55,8 @@ body::before {
   pointer-events: none;
   opacity: 0.5;
   background:
-    radial-gradient(circle at 20% 18%, rgba(78,140,125,0.05), transparent 45%),
-    radial-gradient(circle at 82% 78%, rgba(232,183,119,0.05), transparent 50%);
+    radial-gradient(circle at 20% 18%, rgba(95,111,82,0.05), transparent 45%),
+    radial-gradient(circle at 82% 78%, rgba(196,102,31,0.05), transparent 50%);
 }
 
 [hidden] { display: none !important; }
@@ -88,7 +90,7 @@ input, button { font-family: inherit; }
   font-family: var(--display);
   font-weight: 700;
   font-size: 32px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
   color: var(--ink);
 }
 
@@ -124,15 +126,15 @@ input, button { font-family: inherit; }
 
 .field input:focus-visible {
   outline: none;
-  border-color: var(--jade);
-  box-shadow: 0 0 0 3px var(--jade-wash);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 
 .btn-primary {
   width: 100%;
   margin-top: 8px;
   padding: 12px;
-  background: var(--jade);
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: var(--radius);
@@ -142,13 +144,13 @@ input, button { font-family: inherit; }
   transition: background 0.18s ease, transform 0.06s ease;
 }
 
-.btn-primary:hover { background: var(--jade-deep); }
+.btn-primary:hover { background: var(--accent-deep); }
 .btn-primary:active { transform: translateY(1px); }
 .btn-primary:disabled { opacity: 0.6; cursor: progress; }
 
 .btn-primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--jade-wash);
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 
 .msg {
@@ -157,7 +159,7 @@ input, button { font-family: inherit; }
   font-size: 13px;
   color: var(--clay);
 }
-.msg.ok { color: var(--jade-deep); }
+.msg.ok { color: var(--accent-deep); }
 
 .login-foot {
   color: var(--ink-faint);
@@ -246,11 +248,11 @@ input, button { font-family: inherit; }
   box-shadow: 0 0 0 4px var(--lantern-glow);
   animation: breathe 4.5s ease-in-out infinite;
 }
-.lantern.lit .state { color: var(--jade-deep); }
+.lantern.lit .state { color: var(--accent-deep); }
 
 .lantern.current {
-  border-color: var(--jade);
-  background: var(--jade-wash);
+  border-color: var(--accent);
+  background: var(--accent-wash);
 }
 
 /* unlit = not built yet: dim and unreachable */
@@ -259,8 +261,8 @@ input, button { font-family: inherit; }
 
 .lantern:focus-visible {
   outline: none;
-  border-color: var(--jade);
-  box-shadow: 0 0 0 3px var(--jade-wash);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 
 .rail-foot { padding: 0 6px; }
@@ -279,7 +281,7 @@ input, button { font-family: inherit; }
 .btn-ghost:hover { background: var(--paper-deep); color: var(--ink); }
 .btn-ghost:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--jade-wash);
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 
 /* ── Stage ─────────────────────────────────────────────────── */
@@ -301,7 +303,7 @@ input, button { font-family: inherit; }
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--jade-deep);
+  color: var(--accent-deep);
 }
 
 .stage-body { animation: rise 0.4s ease both; }
@@ -329,7 +331,7 @@ input, button { font-family: inherit; }
 }
 @keyframes breathe {
   0%, 100% { box-shadow: 0 0 0 3px var(--lantern-glow); }
-  50%      { box-shadow: 0 0 0 6px rgba(232, 183, 119, 0.16); }
+  50%      { box-shadow: 0 0 0 6px rgba(196, 102, 31, 0.16); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -384,7 +386,7 @@ input, button { font-family: inherit; }
 }
 .r-tab:hover { color: var(--ink); }
 .r-tab.current { background: var(--surface-2); color: var(--ink); box-shadow: var(--shadow); }
-.r-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--jade-wash); }
+.r-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
 
 .r-btn { width: auto; margin: 0; }
 
@@ -404,8 +406,8 @@ input, button { font-family: inherit; }
 }
 .r-searchbar input:focus-visible, .r-libbar input:focus-visible {
   outline: none;
-  border-color: var(--jade);
-  box-shadow: 0 0 0 3px var(--jade-wash);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 
 .r-status { color: var(--ink-soft); font-size: 13px; min-height: 18px; margin: 0 0 14px; }
@@ -440,11 +442,11 @@ input, button { font-family: inherit; }
   color: var(--ink);
   font-size: 13px;
 }
-.r-tags-in:focus-visible { outline: none; border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-wash); }
+.r-tags-in:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 
 .r-link, .r-mini {
   font-size: 13px;
-  color: var(--jade-deep);
+  color: var(--accent-deep);
   text-decoration: none;
   background: transparent;
   border: 1px solid var(--line);
@@ -453,14 +455,14 @@ input, button { font-family: inherit; }
   cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease;
 }
-.r-link:hover, .r-mini:hover { background: var(--jade-wash); border-color: var(--jade); }
+.r-link:hover, .r-mini:hover { background: var(--accent-wash); border-color: var(--accent); }
 
 .r-card-tags, .r-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .r-card-tags { margin-bottom: 12px; }
 .r-tag {
   font-size: 11px;
-  color: var(--jade-deep);
-  background: var(--jade-wash);
+  color: var(--accent-deep);
+  background: var(--accent-wash);
   padding: 3px 9px;
   border-radius: 20px;
 }
@@ -477,10 +479,10 @@ input, button { font-family: inherit; }
   transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 .r-chip:hover { color: var(--ink); }
-.r-chip.on { background: var(--jade); color: #fff; border-color: var(--jade); }
+.r-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 .r-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.r-del:hover { background: rgba(154, 91, 83, 0.12); border-color: var(--clay); color: var(--clay); }
+.r-del:hover { background: rgba(138, 63, 30, 0.12); border-color: var(--clay); color: var(--clay); }
 
 .r-form { max-width: 520px; display: flex; flex-direction: column; gap: 14px; }
 .r-row2 { display: flex; gap: 14px; }
@@ -502,7 +504,7 @@ input, button { font-family: inherit; }
   color: var(--ink);
   font-size: 14.5px;
 }
-.r-field input:focus-visible { outline: none; border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-wash); }
+.r-field input:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 
 @media (max-width: 600px) {
   .r-row2 { flex-direction: column; }

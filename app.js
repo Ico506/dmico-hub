@@ -1,15 +1,21 @@
 /* ─────────────────────────────────────────────────────────────
    dmico life os — shell logic
-   Fill in the two values below from Supabase:
-     Project Settings → API → Project URL  and  anon public key.
-   The anon key is safe to ship here ONLY because Row Level Security
-   is on. The service_role key must NEVER live in this file.
+   Connection details (Supabase URL + key) live in config.js so they
+   survive every update to THIS file. You should not need to touch them
+   here again. If the hub says it needs setup, open config.js.
    ───────────────────────────────────────────────────────────── */
 
-const SUPABASE_URL = "https://vlczjdqqpajkggzjlsqe.supabase.co";   // ← Project URL
-const SUPABASE_ANON_KEY = "sb_publishable_CF0CgAOY4Ak70NRqILPWlA_IJWWcAuE";          // ← anon public key
+const CFG = window.DMICO_CONFIG || {};
+const SUPABASE_URL = CFG.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = CFG.SUPABASE_ANON_KEY || "";
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const configured =
+  SUPABASE_URL && SUPABASE_ANON_KEY &&
+  !SUPABASE_URL.includes("PASTE") && !SUPABASE_ANON_KEY.includes("PASTE");
+
+const sb = configured
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
 
 /* The modules. Lit ones are built; unlit ones light up as we build them. */
 const MODULES = [
@@ -128,16 +134,26 @@ async function signOut() {
 
 /* ── Wire up + restore session on load ───────────────────────── */
 
-el("sign-in").addEventListener("click", signIn);
-el("password").addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
-el("sign-out").addEventListener("click", signOut);
+if (!sb) {
+  // config.js hasn't been filled in yet — show a calm pointer, not a broken page
+  loginView.hidden = false;
+  appView.hidden = true;
+  const msg = el("login-msg");
+  if (msg) msg.textContent = "Add your publishable key to config.js, then refresh.";
+  const btn = el("sign-in");
+  if (btn) btn.disabled = true;
+} else {
+  el("sign-in").addEventListener("click", signIn);
+  el("password").addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
+  el("sign-out").addEventListener("click", signOut);
 
-sb.auth.getSession().then(({ data }) => {
-  if (data.session) showApp(data.session);
-  else showLogin();
-});
+  sb.auth.getSession().then(({ data }) => {
+    if (data.session) showApp(data.session);
+    else showLogin();
+  });
 
-sb.auth.onAuthStateChange((_event, session) => {
-  if (session) showApp(session);
-  else showLogin();
-});
+  sb.auth.onAuthStateChange((_event, session) => {
+    if (session) showApp(session);
+    else showLogin();
+  });
+}
