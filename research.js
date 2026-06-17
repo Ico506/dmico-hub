@@ -243,11 +243,13 @@
       <div class="r-meta">${esc(meta(p))}</div>
       ${(p.tags && p.tags.length) ? `<div class="r-card-tags">${p.tags.map((t) => `<span class="r-tag">${esc(t)}</span>`).join("")}</div>` : ""}
       <div class="r-actions">
+        <button class="r-mini r-related">Find related</button>
         <button class="r-mini r-bib">Copy BibTeX</button>
         <button class="r-mini r-edit">Tags</button>
         ${p.url ? `<a class="r-mini" href="${esc(p.url)}" target="_blank" rel="noopener">Open</a>` : ""}
         <button class="r-mini r-del">Remove</button>
       </div>`;
+    card.querySelector(".r-related").addEventListener("click", () => findRelated(p));
     card.querySelector(".r-bib").addEventListener("click", (e) => copy(p.bibtex || bibtexFrom(p), e.target));
     card.querySelector(".r-edit").addEventListener("click", () => editTags(p));
     card.querySelector(".r-del").addEventListener("click", () => removePaper(p));
@@ -323,6 +325,46 @@
       status.textContent = ok ? "Added. It's in your Library now." : "Couldn't add it. Try again.";
       if (ok) ["a-title", "a-authors", "a-year", "a-venue", "a-doi", "a-url", "a-tags"].forEach((id) => (document.getElementById(id).value = ""));
     });
+  }
+
+  // ── Find related (via the related-papers edge function) ──────
+  async function findRelated(seed) {
+    const panel = document.getElementById("r-panel");
+    panel.innerHTML = `
+      <button class="r-mini r-back">← Back to library</button>
+      <h3 class="r-related-head">Related to <em>${esc(seed.title)}</em></h3>
+      <p id="r-status" class="r-status">Finding related papers…</p>
+      <div id="r-results" class="r-list"></div>`;
+    panel.querySelector(".r-back").addEventListener("click", () => renderLibrary(panel));
+
+    const status = document.getElementById("r-status");
+    const list = document.getElementById("r-results");
+    const body = seed.doi ? { doi: seed.doi } : { query: seed.title };
+
+    try {
+      const { data, error } = await SB.functions.invoke("related-papers", { body });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+
+      const papers = (data && data.papers) || [];
+      if (!papers.length) {
+        status.textContent = seed.doi
+          ? "No related papers came back for this one."
+          : "This paper has no DOI, so there's nothing to match against yet.";
+        return;
+      }
+      status.textContent = `${papers.length} related paper${papers.length > 1 ? "s" : ""}.`;
+      papers.forEach((fp) => {
+        const p = {
+          title: fp.title, authors: fp.authors || [], year: fp.year, venue: fp.venue || "",
+          doi: fp.doi || "", url: fp.url || "", abstract: "",
+          source: "openalex", external_id: fp.doi || "",
+        };
+        list.appendChild(resultCard(p));
+      });
+    } catch (e) {
+      status.textContent = "Couldn't fetch related papers. " + (e.message || "Try again in a moment.");
+    }
   }
 
   window.renderResearch = render;

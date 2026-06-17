@@ -509,3 +509,13 @@ input, button { font-family: inherit; }
 @media (max-width: 600px) {
   .r-row2 { flex-direction: column; }
 }
+
+/* find-related view */
+.r-related-head {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 16px;
+  margin: 14px 0 6px;
+}
+.r-related-head em { color: var(--accent-deep); font-style: normal; }
+.r-back { margin-bottom: 6px; }
