@@ -140,11 +140,26 @@
       list.innerHTML = `<div class="empty"><h2>No projects yet</h2><p>Add a JadeFrog project above. Every entry you make in DevLog can link back here.</p></div>`;
       return;
     }
+
+    // Fetch total spending per project from Finance in one query.
+    // Gracefully skipped if the project_id column hasn't been added yet.
+    const budgetMap = {};
+    const ids = projects.map((p) => p.id);
+    const { data: expenses } = await SB
+      .from("finance_expenses")
+      .select("project_id, amount")
+      .in("project_id", ids);
+    (expenses || []).forEach((e) => {
+      if (e.project_id) {
+        budgetMap[e.project_id] = (budgetMap[e.project_id] || 0) + Number(e.amount);
+      }
+    });
+
     list.innerHTML = "";
-    projects.forEach((p) => buildProjectCard(p, list));
+    projects.forEach((p) => buildProjectCard(p, list, budgetMap[p.id] || 0));
   }
 
-  function buildProjectCard(p, container) {
+  function buildProjectCard(p, container, budgetSpent) {
     const card = document.createElement("div");
     card.className = "r-card gd-project-card";
     card.dataset.projectId = p.id;
@@ -169,6 +184,11 @@
       ${metaParts.length ? `<div class="r-meta">${metaParts.join("  &middot;  ")}</div>` : ""}
       ${rel ? `<div class="gd-relative">${esc(rel)}</div>` : ""}
       ${p.notes ? `<p class="r-abstract">${esc(p.notes)}</p>` : ""}
+      <div class="gd-budget">
+        ${budgetSpent > 0
+          ? `RM ${Number(budgetSpent).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent`
+          : "No expenses linked yet"}
+      </div>
       <div class="r-actions">
         <select class="gd-status-select r-mini-select" data-id="${esc(p.id)}">
           <option value="active"  ${p.status === "active"  ? "selected" : ""}>Active</option>

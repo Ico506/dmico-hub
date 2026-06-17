@@ -18,3 +18,12 @@ for all
 to authenticated
 using (true)
 with check (true);
+
+-- ── Project budget link (run this separately if table already exists) ──
+-- Links an expense to a Game Dev project for per-project spending totals.
+-- Run this block in the Supabase SQL Editor if the table was already created:
+--
+--   alter table public.finance_expenses
+--     add column if not exists project_id uuid
+--     references public.gamedev_projects(id) on delete set null;
+

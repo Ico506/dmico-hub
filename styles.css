@@ -929,6 +929,12 @@ input, button { font-family: inherit; }
   margin: 5px 0 0;
 }
 
+.gd-budget {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 6px 0 0;
+}
+
 .gd-status {
   flex-shrink: 0;
   font-size: 0.72rem;
@@ -1256,6 +1262,14 @@ input, button { font-family: inherit; }
   padding: 2px 9px;
   background: var(--accent-wash);
   color: var(--accent-deep);
+  border-color: transparent;
+}
+
+.fin-exp-project {
+  font-size: 0.72rem;
+  padding: 2px 9px;
+  background: rgba(196, 102, 31, 0.1);
+  color: var(--clay);
   border-color: transparent;
 }
 

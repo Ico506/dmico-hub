@@ -16,6 +16,9 @@
   let activeYear  = new Date().getFullYear();
   let activeMonth = new Date().getMonth();
 
+  // Cached list of game dev projects for the expense project dropdown.
+  let gdProjects = [];
+
   const esc = (s) =>
     String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -67,6 +70,12 @@
           <div class="r-field"><label>Note</label><input id="fe-note" type="text" placeholder="optional detail" /></div>
           <div class="r-field"><label>Date</label><input id="fe-date" type="date" value="${new Date().toISOString().slice(0,10)}" /></div>
         </div>
+        <div class="r-field">
+          <label>Link to project <span class="r-label-optional">(optional)</span></label>
+          <select id="fe-project">
+            <option value="">— no project —</option>
+          </select>
+        </div>
         <button id="fe-save" class="btn-primary r-btn">Log expense</button>
         <p id="fe-status" class="r-status"></p>
       </div>
@@ -84,6 +93,23 @@
     el("fe-save").addEventListener("click", addExpense);
     el("fin-prev").addEventListener("click", () => shiftMonth(-1));
     el("fin-next").addEventListener("click", () => shiftMonth(1));
+
+    // Populate project dropdown (non-blocking — form is usable while this loads).
+    SB.from("gamedev_projects")
+      .select("id, name")
+      .neq("status", "shelved")
+      .order("name", { ascending: true })
+      .then(({ data }) => {
+        gdProjects = data || [];
+        const sel = el("fe-project");
+        if (!sel || !gdProjects.length) return;
+        gdProjects.forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          opt.textContent = p.name;
+          sel.appendChild(opt);
+        });
+      });
 
     await refreshExpenses();
   }
@@ -107,13 +133,16 @@
       logged_at: dateVal ? new Date(dateVal + "T12:00:00").toISOString() : new Date().toISOString(),
       added_via: "web",
     };
+    const selectedProject = el("fe-project")?.value;
+    if (selectedProject) row.project_id = selectedProject;
     msg.textContent = "Logging…";
     const { error } = await SB.from("finance_expenses").insert(row);
     if (error) { console.error(error); msg.textContent = "Couldn't save. Try again."; return; }
-    el("fe-amount").value = "";
-    el("fe-cat").value    = "";
-    el("fe-note").value   = "";
-    el("fe-date").value   = new Date().toISOString().slice(0, 10);
+    el("fe-amount").value  = "";
+    el("fe-cat").value     = "";
+    el("fe-note").value    = "";
+    el("fe-date").value    = new Date().toISOString().slice(0, 10);
+    if (el("fe-project")) el("fe-project").value = "";
     msg.textContent = "";
     // If the logged entry falls in the current viewed month, refresh.
     const entryMonth = new Date(row.logged_at).getMonth();
@@ -303,6 +332,10 @@
           <span class="fin-exp-amount">${fmtRM(e.amount)}</span>
           <div class="fin-exp-detail">
             ${e.category ? `<span class="r-chip fin-exp-cat">${esc(e.category)}</span>` : ""}
+            ${e.project_id ? (() => {
+              const proj = gdProjects.find((p) => p.id === e.project_id);
+              return proj ? `<span class="r-chip fin-exp-project">${esc(proj.name)}</span>` : "";
+            })() : ""}
             ${e.note ? `<span class="fin-exp-note">${esc(e.note)}</span>` : ""}
           </div>
         </div>
