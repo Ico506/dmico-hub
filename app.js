@@ -25,7 +25,8 @@ const MODULES = [
     blurb: "Track exams with a live countdown and run focus sessions. The balanced study-plan generator lands in the next build." },
   { id: "hygiene",   label: "Hygiene",    lit: true,
     blurb: "Cleaning timers and supply inventory." },
-  { id: "gamedev",   label: "Game Dev",   lit: false },
+  { id: "gamedev",   label: "Game Dev",   lit: true,
+    blurb: "JadeFrog Studio projects, devlog, and idea board." },
   { id: "finance",   label: "Finance",    lit: false },
 ];
 
@@ -95,6 +96,8 @@ function openModule(id) {
     window.renderSelfStudy(body, sb);
   } else if (id === "hygiene" && window.renderHygiene) {
     window.renderHygiene(body, sb);
+  } else if (id === "gamedev" && window.renderGameDev) {
+    window.renderGameDev(body, sb);
   } else {
     body.innerHTML =
       `<div class="empty">

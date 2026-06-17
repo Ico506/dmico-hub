@@ -784,3 +784,212 @@ input, button { font-family: inherit; }
 .h-status-ok  { background: var(--accent-wash); color: var(--accent-deep); }
 .h-status-low { background: rgba(196, 102, 31, 0.14); color: var(--lantern); }
 .h-status-out { background: rgba(138, 63, 30, 0.16); color: var(--clay); }
+
+/* ── Game Dev module (.gd-*) ───────────────────────────────── */
+
+.gd-addform {
+  margin-bottom: 18px;
+}
+
+/* Project cards */
+
+.gd-project-card {}
+
+.gd-proj-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gd-proj-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.gd-pitch {
+  font-style: italic;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin: 2px 0 0;
+}
+
+.gd-relative {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  margin: 5px 0 0;
+}
+
+.gd-status {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+}
+
+.gd-status-active  { background: var(--accent-wash);             color: var(--accent-deep); border-color: transparent; }
+.gd-status-on_hold { background: rgba(196, 102, 31, 0.13);       color: var(--lantern);     border-color: transparent; }
+.gd-status-shipped { background: rgba(138, 63, 30, 0.1);         color: var(--clay);        border-color: transparent; }
+
+.gd-mini-select {
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+/* DevLog */
+
+.gd-log-entry {
+  padding: 14px 18px;
+}
+
+.gd-log-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.gd-log-proj {
+  font-size: 0.72rem;
+  padding: 2px 9px;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  border-color: transparent;
+}
+
+.gd-log-date {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+  margin-left: auto;
+}
+
+.gd-log-content {
+  font-size: 0.88rem;
+  color: var(--ink);
+  line-height: 1.55;
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+}
+
+/* Ideas Kanban */
+
+.gd-kanban {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 6px;
+  align-items: start;
+}
+
+@media (max-width: 680px) {
+  .gd-kanban {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gd-col {
+  background: var(--paper-deep);
+  border-radius: var(--radius);
+  padding: 12px;
+  min-height: 120px;
+}
+
+.gd-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.gd-col-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gd-col-seed      { color: var(--accent-deep); }
+.gd-col-exploring { color: var(--lantern); }
+.gd-col-shelved   { color: var(--ink-faint); }
+
+.gd-col-count {
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+  background: var(--surface);
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+
+.gd-col-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gd-idea-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.gd-idea-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.gd-idea-genre {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  border-color: transparent;
+  margin-bottom: 5px;
+  display: inline-block;
+}
+
+.gd-idea-hook {
+  font-size: 0.81rem;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 5px 0 2px;
+  line-height: 1.4;
+}
+
+.gd-idea-notes {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  margin: 3px 0;
+  line-height: 1.4;
+}
+
+.gd-idea-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.gd-move-btn {
+  font-size: 0.82rem;
+  padding: 3px 9px;
+  min-width: 32px;
+}
+
+.r-mini-select {
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
