@@ -27,7 +27,8 @@ const MODULES = [
     blurb: "Cleaning timers and supply inventory." },
   { id: "gamedev",   label: "Game Dev",   lit: true,
     blurb: "JadeFrog Studio projects, devlog, and idea board." },
-  { id: "finance",   label: "Finance",    lit: false },
+  { id: "finance",   label: "Finance",    lit: true,
+    blurb: "Expense tracker and savings goals leaderboard." },
 ];
 
 const el = (id) => document.getElementById(id);
@@ -98,6 +99,8 @@ function openModule(id) {
     window.renderHygiene(body, sb);
   } else if (id === "gamedev" && window.renderGameDev) {
     window.renderGameDev(body, sb);
+  } else if (id === "finance" && window.renderFinance) {
+    window.renderFinance(body, sb);
   } else {
     body.innerHTML =
       `<div class="empty">

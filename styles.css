@@ -993,3 +993,285 @@ input, button { font-family: inherit; }
   color: var(--ink-soft);
   cursor: pointer;
 }
+
+/* ── Finance module (.fin-*) ───────────────────────────────── */
+
+.fin-addform {
+  margin-bottom: 18px;
+}
+
+/* Month navigation */
+
+.fin-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 14px;
+}
+
+.fin-nav-btn {
+  min-width: 34px;
+}
+
+.fin-month-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+/* Summary card */
+
+.fin-summary-card {
+  background: var(--paper-deep);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.fin-summary-top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.fin-total {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fin-total-label {
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+}
+
+.fin-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fin-cat-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .fin-cat-row {
+    grid-template-columns: 90px 1fr auto;
+  }
+}
+
+.fin-cat-name {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fin-bar-track {
+  height: 6px;
+  background: var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fin-bar-fill {
+  height: 100%;
+  background: var(--accent-deep);
+  border-radius: 4px;
+  transition: width 0.25s ease;
+}
+
+.fin-cat-amt {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* Expense rows */
+
+.fin-expense-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.fin-exp-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.fin-exp-amount {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fin-exp-detail {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.fin-exp-cat {
+  font-size: 0.72rem;
+  padding: 2px 9px;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  border-color: transparent;
+}
+
+.fin-exp-note {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.fin-exp-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fin-exp-date {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+/* Goals leaderboard */
+
+.fin-goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.fin-goal-card {
+  padding: 16px 18px;
+}
+
+.fin-goal-done {
+  background: var(--accent-wash);
+  border-color: var(--accent-light, var(--accent-wash));
+}
+
+.fin-goal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.fin-goal-rank {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-faint);
+  min-width: 28px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.fin-goal-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fin-goal-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fin-done-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: var(--accent-deep);
+  color: var(--paper);
+  flex-shrink: 0;
+}
+
+.fin-goal-pct {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+
+.fin-pct-done {
+  color: var(--accent-deep);
+}
+
+/* Progress bar */
+
+.fin-progress-track {
+  height: 8px;
+  background: var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.fin-progress-fill {
+  height: 100%;
+  background: var(--accent-deep);
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.fin-fill-done {
+  background: var(--accent-deep);
+  opacity: 0.7;
+}
+
+/* Goal meta row */
+
+.fin-goal-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.fin-goal-numbers {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.fin-goal-left {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.fin-left-done {
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+.fin-goal-updated {
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+  margin-bottom: 6px;
+}
