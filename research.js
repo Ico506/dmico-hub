@@ -339,7 +339,7 @@
 
     const status = document.getElementById("r-status");
     const list = document.getElementById("r-results");
-    const body = seed.doi ? { doi: seed.doi } : { query: seed.title };
+    const body = { doi: seed.doi || "", title: seed.title || "" };
 
     try {
       const { data, error } = await SB.functions.invoke("related-papers", { body });
@@ -348,12 +348,12 @@
 
       const papers = (data && data.papers) || [];
       if (!papers.length) {
-        status.textContent = seed.doi
-          ? "No related papers came back for this one."
-          : "This paper has no DOI, so there's nothing to match against yet.";
+        status.textContent = "Nothing came back for this one, even by title.";
         return;
       }
-      status.textContent = `${papers.length} related paper${papers.length > 1 ? "s" : ""}.`;
+      status.textContent = data.via === "search"
+        ? `No precomputed neighbours, so here are the closest matches by title (${papers.length}).`
+        : `${papers.length} related paper${papers.length > 1 ? "s" : ""}.`;
       papers.forEach((fp) => {
         const p = {
           title: fp.title, authors: fp.authors || [], year: fp.year, venue: fp.venue || "",
