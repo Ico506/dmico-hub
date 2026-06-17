@@ -77,6 +77,7 @@
         <button id="fin-next" class="r-mini fin-nav-btn">&#8594;</button>
       </div>
 
+      <div id="fin-chart-wrap" class="fin-chart-wrap"></div>
       <div id="fin-summary" class="fin-summary"></div>
       <div id="fin-entries" class="r-list"></div>`;
 
@@ -163,6 +164,89 @@
     const entries = data || [];
     buildSummary(entries, summaryEl);
     buildEntryList(entries, listEl);
+    await drawChart();
+  }
+
+  // ── 6-month trend chart (SVG, no dependencies) ─────────────
+  async function drawChart() {
+    const wrap = el("fin-chart-wrap");
+    if (!wrap) return;
+
+    // Build the 6-month window ending at the active month.
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      let m = activeMonth - i;
+      let y = activeYear;
+      while (m < 0) { m += 12; y--; }
+      months.push({ year: y, month: m });
+    }
+
+    const rangeStart = new Date(months[0].year, months[0].month, 1).toISOString();
+    const rangeEnd   = new Date(activeYear, activeMonth + 1, 1).toISOString();
+
+    const { data } = await SB
+      .from("finance_expenses")
+      .select("amount, logged_at")
+      .gte("logged_at", rangeStart)
+      .lt("logged_at", rangeEnd);
+
+    // Total per month.
+    const totals = months.map(({ year, month }) => {
+      const sum = (data || [])
+        .filter((e) => {
+          const d = new Date(e.logged_at);
+          return d.getFullYear() === year && d.getMonth() === month;
+        })
+        .reduce((s, e) => s + Number(e.amount), 0);
+      return { year, month, total: sum };
+    });
+
+    const maxTotal = Math.max(...totals.map((t) => t.total), 1);
+    const W = 500, H = 140;
+    const padTop = 22, padBot = 28, padL = 10, padR = 10;
+    const plotH = H - padTop - padBot;
+    const slotW = (W - padL - padR) / 6;
+    const barW  = Math.floor(slotW * 0.52);
+
+    const barEls = totals.map((t, i) => {
+      const isActive = t.month === activeMonth && t.year === activeYear;
+      const barH = t.total > 0 ? Math.max(6, Math.round(plotH * t.total / maxTotal)) : 4;
+      const x    = padL + i * slotW + (slotW - barW) / 2;
+      const y    = padTop + plotH - barH;
+      const fill = isActive ? "#C4661F" : "#5F6F52";
+      const opacity = isActive ? "1" : "0.55";
+      const monthLabel = MONTH_NAMES[t.month].slice(0, 3);
+      const amtLabel = t.total > 0
+        ? (t.total >= 1000 ? `${(t.total / 1000).toFixed(1)}k` : Math.round(t.total).toString())
+        : "";
+
+      return `<g class="fin-cbar" data-year="${t.year}" data-month="${t.month}">
+        <rect x="${x - 6}" y="0" width="${barW + 12}" height="${H}" fill="transparent" style="cursor:pointer"/>
+        <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="4"
+              fill="${fill}" opacity="${opacity}"/>
+        ${amtLabel ? `<text x="${x + barW / 2}" y="${y - 5}" text-anchor="middle"
+              font-size="9" fill="${fill}" font-family="var(--body)" opacity="${opacity}">${amtLabel}</text>` : ""}
+        <text x="${x + barW / 2}" y="${H - 5}" text-anchor="middle"
+              font-size="10" fill="${isActive ? "#45301E" : "#7C6A4F"}"
+              font-weight="${isActive ? "700" : "400"}"
+              font-family="var(--body)">${monthLabel}</text>
+      </g>`;
+    }).join("");
+
+    wrap.innerHTML = `
+      <svg class="fin-chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        <line x1="${padL}" y1="${padTop + plotH}" x2="${W - padR}" y2="${padTop + plotH}"
+              stroke="var(--line)" stroke-width="1.5"/>
+        ${barEls}
+      </svg>`;
+
+    wrap.querySelectorAll(".fin-cbar").forEach((g) => {
+      g.addEventListener("click", () => {
+        activeYear  = parseInt(g.dataset.year,  10);
+        activeMonth = parseInt(g.dataset.month, 10);
+        refreshExpenses();
+      });
+    });
   }
 
   function buildSummary(entries, container) {

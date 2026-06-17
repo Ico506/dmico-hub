@@ -1122,6 +1122,25 @@ input, button { font-family: inherit; }
   min-width: 34px;
 }
 
+/* 6-month trend chart */
+
+.fin-chart-wrap {
+  margin: 0 0 18px;
+  padding: 10px 12px 6px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.fin-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fin-cbar { cursor: pointer; }
+.fin-cbar:hover rect[rx="4"] { opacity: 1 !important; }
+
 .fin-month-label {
   font-weight: 600;
   font-size: 0.95rem;
