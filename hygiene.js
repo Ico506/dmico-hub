@@ -104,7 +104,7 @@
     if (error) { console.error(error); list.innerHTML = `<p class="r-status">Couldn't load chores.</p>`; return; }
     const items = data || [];
     if (!items.length) {
-      list.innerHTML = `<div class="empty"><h2>No chores yet</h2><p>Add one above and it shows up here with a timer. Hit "Mark done" after you do it.</p></div>`;
+      list.innerHTML = `<div class="empty"><h2>No chores yet</h2><p>Add one above and it shows up here with a timer. Hit "Done" after you finish it.</p></div>`;
       return;
     }
     list.innerHTML = "";
@@ -132,7 +132,7 @@
         </div>
       </div>
       <div class="r-actions">
-        <button class="r-mini h-done-btn">Mark done</button>
+        <button class="r-mini h-done-btn">Done</button>
         <button class="r-mini r-del">Remove</button>
       </div>`;
 
@@ -157,14 +157,10 @@
     if (error) {
       console.error(error);
       btn.disabled = false;
-      btn.textContent = "Mark done";
+      btn.textContent = "Done";
       return;
     }
-    // Update card in-place rather than full redraw.
-    const sinceEl = card.querySelector(".h-since");
-    if (sinceEl) { sinceEl.textContent = "done today"; sinceEl.className = "h-since ok"; }
-    btn.disabled = false;
-    btn.textContent = "Mark done";
+    await drawChores();
   }
 
   // ════════════════════════════════════════════════════════════
