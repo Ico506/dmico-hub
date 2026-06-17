@@ -21,7 +21,8 @@ const sb = configured
 const MODULES = [
   { id: "research",  label: "Research",   lit: true,
     blurb: "Your reference library and paper discovery live here. The next build wires up search across Semantic Scholar, one-tap save to your library, tag filtering by your themes, and BibTeX export for writing." },
-  { id: "selfstudy", label: "Self-study", lit: false },
+  { id: "selfstudy", label: "Self-study", lit: true,
+    blurb: "Track exams with a live countdown and run focus sessions. The balanced study-plan generator lands in the next build." },
   { id: "hygiene",   label: "Hygiene",    lit: false },
   { id: "gamedev",   label: "Game Dev",   lit: false },
   { id: "finance",   label: "Finance",    lit: false },
@@ -89,6 +90,8 @@ function openModule(id) {
   const body = el("stage-body");
   if (id === "research" && window.renderResearch) {
     window.renderResearch(body, sb);
+  } else if (id === "selfstudy" && window.renderSelfStudy) {
+    window.renderSelfStudy(body, sb);
   } else {
     body.innerHTML =
       `<div class="empty">
