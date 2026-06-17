@@ -6,8 +6,8 @@
    is on. The service_role key must NEVER live in this file.
    ───────────────────────────────────────────────────────────── */
 
-const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";   // ← Project URL
-const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";          // ← anon public key
+const SUPABASE_URL = "https://vlczjdqqpajkggzjlsqe.supabase.co";   // ← Project URL
+const SUPABASE_ANON_KEY = "sb_publishable_CF0CgAOY4Ak70NRqILPWlA_IJWWcAuE";          // ← anon public key
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
