@@ -19,15 +19,17 @@ const sb = configured
 
 /* The modules. Lit ones are built; unlit ones light up as we build them. */
 const MODULES = [
-  { id: "research",  label: "Research",   lit: true,
-    blurb: "Your reference library and paper discovery live here. The next build wires up search across Semantic Scholar, one-tap save to your library, tag filtering by your themes, and BibTeX export for writing." },
-  { id: "selfstudy", label: "Self-study", lit: true,
-    blurb: "Track exams with a live countdown and run focus sessions. The balanced study-plan generator lands in the next build." },
-  { id: "hygiene",   label: "Hygiene",    lit: true,
+  { id: "dashboard",  label: "Home",       lit: true,
+    blurb: "Your life OS at a glance." },
+  { id: "research",   label: "Research",   lit: true,
+    blurb: "Your reference library and paper discovery live here." },
+  { id: "selfstudy",  label: "Self-study", lit: true,
+    blurb: "Track exams with a live countdown and run focus sessions." },
+  { id: "hygiene",    label: "Hygiene",    lit: true,
     blurb: "Cleaning timers and supply inventory." },
-  { id: "gamedev",   label: "Game Dev",   lit: true,
+  { id: "gamedev",    label: "Game Dev",   lit: true,
     blurb: "JadeFrog Studio projects, devlog, and idea board." },
-  { id: "finance",   label: "Finance",    lit: true,
+  { id: "finance",    label: "Finance",    lit: true,
     blurb: "Expense tracker and savings goals leaderboard." },
 ];
 
@@ -48,7 +50,7 @@ function showApp(session) {
   appView.hidden = false;
   el("greeting").textContent = greeting(session);
   renderRail();
-  openModule("research");
+  openModule("dashboard");
 }
 
 function greeting(session) {
@@ -81,6 +83,9 @@ function renderRail() {
   });
 }
 
+// Exposed for dashboard cards to navigate between modules
+window.__openModule = function (id) { openModule(id); };
+
 function openModule(id) {
   const m = MODULES.find((x) => x.id === id);
   if (!m || !m.lit) return;
@@ -91,7 +96,9 @@ function openModule(id) {
 
   el("module-eyebrow").textContent = m.label;
   const body = el("stage-body");
-  if (id === "research" && window.renderResearch) {
+  if (id === "dashboard" && window.renderDashboard) {
+    window.renderDashboard(body, sb);
+  } else if (id === "research" && window.renderResearch) {
     window.renderResearch(body, sb);
   } else if (id === "selfstudy" && window.renderSelfStudy) {
     window.renderSelfStudy(body, sb);

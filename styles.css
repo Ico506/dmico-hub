@@ -620,6 +620,115 @@ input, button { font-family: inherit; }
   margin-bottom: 14px;
 }
 
+/* ── Dashboard (.dash-*) ───────────────────────────────────── */
+
+.dash-header {
+  margin-bottom: 28px;
+}
+
+.dash-date {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin: 0 0 3px;
+  letter-spacing: 0.02em;
+}
+
+.dash-sub {
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.dash-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 16px 18px 16px 20px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+  font-family: var(--body);
+  color: var(--ink);
+}
+
+.dash-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.dash-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+/* Status tone: left border accent */
+.dash-card--green  { border-left-color: var(--accent); }
+.dash-card--orange { border-left-color: var(--lantern); }
+.dash-card--yellow { border-left-color: #B08A2A; }
+.dash-card--dim    { border-left-color: var(--line); opacity: 0.7; }
+.dash-card--default { border-left-color: var(--line); }
+
+.dash-card-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+  margin-bottom: 7px;
+}
+
+.dash-card-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.dash-card-primary {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.dash-card-secondary {
+  font-size: 0.77rem;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+/* Loading skeleton */
+.dash-card--loading {
+  pointer-events: none;
+  border-left-color: var(--line);
+}
+
+.dash-skel {
+  height: 11px;
+  background: var(--paper-deep);
+  border-radius: 4px;
+  margin: 5px 0;
+  animation: dash-pulse 1.4s ease-in-out infinite;
+}
+
+.dash-skel--short { width: 55%; }
+
+@keyframes dash-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
 /* ── Study plan display (.s-plan-*) ────────────────────────── */
 
 .s-plan {
