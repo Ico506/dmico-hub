@@ -2136,76 +2136,70 @@ input, button { font-family: inherit; }
   padding: 6px 10px;
 }
 
-.th-add-log-form-row input:focus,
-.th-add-log-form-row select:focus,
-.th-add-log-form-row textarea:focus {
-  outline: none;
-  border-color: var(--accent);
+.th-add-log-form-row inp
+/* ── Rail drag-and-drop ─────────────────────────────────────── */
+.lantern[draggable] { cursor: grab; }
+.lantern[draggable]:active { cursor: grabbing; }
+.lantern-dragging { opacity: 0.35; }
+.lantern-drag-above { box-shadow: 0 -3px 0 var(--lantern); }
+.lantern-drag-below { box-shadow: 0  3px 0 var(--lantern); }
+
+/* ── Finance Overview: surplus panel ──────────────────────────── */
+.fin-ov-surplus-form-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
-.th-add-log-form-row select {
-  flex: 1;
+.fin-ov-surplus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
-.th-log-empty {
-  font-size: 0.88rem;
-  color: var(--ink-faint);
-  font-style: italic;
-  padding: 8px 0;
+.fin-ov-surplus-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
 }
 
-/* ─────────────────────────────────────────────────────────────
-   FINANCE — Overview tab (.fin-ov-*)
-   ───────────────────────────────────────────────────────────── */
-
-.fin-ov-section {
-  margin-bottom: 20px;
-}
-
-.fin-ov-section-head {
+.fin-ov-surplus-row-left {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.fin-ov-section-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.fin-ov-section-note {
-  font-size: 0.75rem;
-  color: var(--ink-faint);
-}
-
-/* Income panel */
-.fin-ov-income-prompt {
-  background: var(--surface-2);
-  border: 1.5px dashed var(--line);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-}
-
-.fin-ov-income-prompt-text {
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-  margin: 0 0 10px;
-}
-
-.fin-ov-income-form {
-  display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
 }
 
-.fin-ov-income-input {
-  width: 140px;
+.fin-ov-surplus-amt {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 0.95rem;
+}
+
+.fin-ov-surplus-total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.fin-ov-surplus-empty {
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  margin: 0;
+  padding: 4px 2px;
+}
+0px;
   background: var(--surface-2);
   border: 1.5px solid var(--line);
   border-radius: 8px;

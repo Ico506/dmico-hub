@@ -137,7 +137,7 @@
     const windowEnd   = new Date(thisYear, thisMonth + 1, 1).toISOString();
 
     // Load everything in parallel.
-    const [settings, thisMonthIncomeRes, allIncomeRes, expenseRes, goalsRes] = await Promise.all([
+    const [settings, thisMonthIncomeRes, allIncomeRes, expenseRes, goalsRes, surplusRes] = await Promise.all([
       loadSettings(),
       SB.from("finance_income").select("*").eq("year", thisYear).eq("month", thisMonth).limit(1),
       SB.from("finance_income").select("*")
@@ -146,27 +146,47 @@
       SB.from("finance_expenses").select("amount, logged_at")
         .gte("logged_at", windowStart).lt("logged_at", windowEnd),
       SB.from("finance_goals").select("*"),
+      SB.from("finance_surplus").select("*")
+        .gte("logged_at", windowStart).lt("logged_at", windowEnd)
+        .order("logged_at", { ascending: false }),
     ]);
 
     const thisMonthIncome = thisMonthIncomeRes.data?.[0] ?? null;
     const allIncome       = allIncomeRes.data || [];
     const allExpenses     = expenseRes.data   || [];
     const goals           = goalsRes.data     || [];
+    const allSurplus      = surplusRes.data   || [];
+
+    // This month's surplus entries.
+    const thisSurplus = allSurplus.filter((s) => {
+      const d = new Date(s.logged_at);
+      return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+    });
 
     // Per-month net savings across the 6-month window.
+    // net is null only when neither allowance nor surplus is logged for that month.
     const monthlySavings = windowMonths.map(({ year, month }) => {
       const inc = allIncome.find((r) => r.year === year && r.month === month);
+      const surplusAmt = allSurplus
+        .filter((s) => {
+          const d = new Date(s.logged_at);
+          return d.getFullYear() === year && d.getMonth() === month;
+        })
+        .reduce((sum, s) => sum + Number(s.amount), 0);
       const exp = allExpenses
         .filter((e) => {
           const d = new Date(e.logged_at);
           return d.getFullYear() === year && d.getMonth() === month;
         })
         .reduce((s, e) => s + Number(e.amount), 0);
+      const hasAnyIncome = inc !== undefined || surplusAmt > 0;
+      const totalIn = (inc ? Number(inc.amount) : 0) + surplusAmt;
       return {
         year, month,
         income:   inc ? Number(inc.amount) : 0,
+        surplus:  surplusAmt,
         expenses: exp,
-        net:      inc ? Number(inc.amount) - exp : null, // null = income not logged
+        net:      hasAnyIncome ? totalIn - exp : null,
       };
     });
 
@@ -183,16 +203,19 @@
       : null;
 
     // This month figures.
-    const income       = thisMonthIncome ? Number(thisMonthIncome.amount) : 0;
-    const thisMonthExp = monthlySavings.find(
+    const income          = thisMonthIncome ? Number(thisMonthIncome.amount) : 0;
+    const surplusThisMonth = thisSurplus.reduce((s, r) => s + Number(r.amount), 0);
+    const totalIncomeThisMonth = income + surplusThisMonth;
+    const thisMonthExp    = monthlySavings.find(
       (m) => m.year === thisYear && m.month === thisMonth
     )?.expenses ?? 0;
-    const savings = income - thisMonthExp;
+    const savings = totalIncomeThisMonth - thisMonthExp;
     const budget  = getBudget();
 
     // Render shell.
     panel.innerHTML = `
       <div id="fin-ov-income-section" class="fin-ov-section"></div>
+      <div id="fin-ov-surplus-section" class="fin-ov-section"></div>
 
       <div class="fin-ov-section fin-ov-totals">
         <div class="fin-ov-stat-row">
@@ -268,7 +291,8 @@
     });
 
     drawIncomePanel(el("fin-ov-income-section"), thisMonthIncome, allIncome, thisYear, thisMonth);
-    draw503020(el("fin-ov-rule-section"), income, thisMonthExp, savings);
+    drawSurplusPanel(el("fin-ov-surplus-section"), thisSurplus, allSurplus, thisYear, thisMonth);
+    draw503020(el("fin-ov-rule-section"), totalIncomeThisMonth, thisMonthExp, savings);
     drawSavingsChart(el("fin-ov-chart-wrap"), monthlySavings);
     drawProjections(el("fin-ov-projections"), goals, avgMonthlySavings, totalSaved);
   }
@@ -352,6 +376,90 @@
         renderOverview();
       });
     }
+  }
+
+  // ── Surplus / Extra Income panel ───────────────────────────
+  function drawSurplusPanel(section, thisSurplus, allSurplus, thisYear, thisMonth) {
+    if (!section) return;
+    const monthLabel = `${MONTH_NAMES[thisMonth]} ${thisYear}`;
+    const total = thisSurplus.reduce((s, r) => s + Number(r.amount), 0);
+
+    // Group past months for history (exclude current).
+    const pastMap = {};
+    allSurplus.forEach((s) => {
+      const d = new Date(s.logged_at);
+      const y = d.getFullYear(), m = d.getMonth();
+      if (y === thisYear && m === thisMonth) return;
+      const key = `${y}-${m}`;
+      if (!pastMap[key]) pastMap[key] = { year: y, month: m, total: 0 };
+      pastMap[key].total += Number(s.amount);
+    });
+    const pastRows = Object.values(pastMap)
+      .sort((a, b) => b.year - a.year || b.month - a.month)
+      .slice(0, 5)
+      .map((r) => `
+        <div class="fin-ov-hist-row">
+          <span>${MONTH_NAMES[r.month]} ${r.year}</span>
+          <span>${fmtRM(r.total)}</span>
+        </div>`)
+      .join("");
+
+    const entryRows = thisSurplus.map((r) => `
+      <div class="fin-ov-surplus-row">
+        <div class="fin-ov-surplus-row-left">
+          <span class="fin-ov-surplus-amt">${fmtRM(r.amount)}</span>
+          ${r.description ? `<span class="fin-ov-hist-note">${esc(r.description)}</span>` : ""}
+        </div>
+        <button class="r-mini r-del fin-surplus-del" data-id="${esc(r.id)}">×</button>
+      </div>`).join("");
+
+    section.innerHTML = `
+      <div class="fin-ov-section-head">
+        <span class="fin-ov-section-label">Extra Income — ${monthLabel}</span>
+        <span class="fin-ov-section-note">gifts · freelance · windfalls</span>
+      </div>
+      <div class="fin-ov-surplus-form-row">
+        <input id="fin-surplus-amt" type="number" min="0" step="0.01"
+               placeholder="Amount (RM)" class="fin-ov-income-input" />
+        <input id="fin-surplus-desc" type="text"
+               placeholder="Description (optional)" class="fin-ov-income-notes-input" />
+        <button id="fin-surplus-save" class="r-mini">+ Add extra</button>
+        <p id="fin-surplus-status" class="r-status"></p>
+      </div>
+      ${total > 0
+        ? `<div class="fin-ov-surplus-total">+ ${fmtRM(total)} extra this month</div>`
+        : ""}
+      <div class="fin-ov-surplus-list">
+        ${entryRows || `<p class="fin-ov-surplus-empty">No extra income logged this month.</p>`}
+      </div>
+      ${pastRows ? `
+        <details class="fin-ov-hist">
+          <summary class="fin-ov-hist-toggle">Previous months</summary>
+          <div class="fin-ov-hist-list">${pastRows}</div>
+        </details>` : ""}`;
+
+    section.querySelector("#fin-surplus-save").addEventListener("click", async () => {
+      const amt  = parseFloat(section.querySelector("#fin-surplus-amt").value);
+      const desc = section.querySelector("#fin-surplus-desc").value.trim();
+      const status = section.querySelector("#fin-surplus-status");
+      if (!amt || amt <= 0) { status.textContent = "Enter a valid amount."; return; }
+      status.textContent = "Saving…";
+      const { error } = await SB.from("finance_surplus").insert({
+        amount: amt, description: desc || null,
+        logged_at: new Date().toISOString(),
+      });
+      if (error) { console.error(error); status.textContent = "Couldn't save. Try again."; return; }
+      renderOverview();
+    });
+
+    section.querySelectorAll(".fin-surplus-del").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!window.confirm("Remove this entry?")) return;
+        const { error } = await SB.from("finance_surplus").delete().eq("id", btn.dataset.id);
+        if (error) { console.error(error); return; }
+        renderOverview();
+      });
+    });
   }
 
   // ── 50/30/20 panel ─────────────────────────────────────────

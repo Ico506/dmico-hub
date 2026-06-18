@@ -28,7 +28,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -56,6 +56,10 @@ window.renderDashboard = async function (container, sb) {
         .eq("year", today.getFullYear())
         .eq("month", today.getMonth())
         .limit(1),
+      sb.from("finance_surplus")
+        .select("amount")
+        .gte("logged_at", new Date(today.getFullYear(), today.getMonth(), 1).toISOString())
+        .lt("logged_at", new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString()),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -123,10 +127,12 @@ window.renderDashboard = async function (container, sb) {
   const nearBudget  = budgetLimit != null && !overBudget && monthSpend / budgetLimit >= 0.8;
   const fmtRM = (n) => "RM " + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Savings rate from this month's income (if logged).
-  const incomeAmt  = thisMonthIncome?.data?.[0] ? Number(thisMonthIncome.data[0].amount) : null;
-  const netSavings = incomeAmt !== null ? incomeAmt - monthSpend : null;
-  const savingsPct = incomeAmt ? Math.round((netSavings / incomeAmt) * 100) : null;
+  // Savings rate from this month's income + any surplus (if logged).
+  const incomeAmt     = thisMonthIncome?.data?.[0] ? Number(thisMonthIncome.data[0].amount) : null;
+  const surplusAmt    = (thisMonthSurplus?.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
+  const totalIncomeAmt = incomeAmt !== null ? incomeAmt + surplusAmt : (surplusAmt > 0 ? surplusAmt : null);
+  const netSavings    = totalIncomeAmt !== null ? totalIncomeAmt - monthSpend : null;
+  const savingsPct    = totalIncomeAmt ? Math.round((netSavings / totalIncomeAmt) * 100) : null;
 
   // ── Build cards ────────────────────────────────────────────
   const cards = [

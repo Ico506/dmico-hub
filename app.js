@@ -65,22 +65,79 @@ function greeting(session) {
 /* ── The lantern rail ────────────────────────────────────────── */
 
 function renderRail() {
+  // Apply saved order to MODULES array so it persists across sessions.
+  const savedOrder = localStorage.getItem("dmico-rail-order");
+  if (savedOrder) {
+    try {
+      const order = JSON.parse(savedOrder);
+      MODULES.sort((a, b) => {
+        const ai = order.indexOf(a.id);
+        const bi = order.indexOf(b.id);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      });
+    } catch (_) {}
+  }
+
   const nav = el("modules");
   nav.innerHTML = "";
+  let dragSrc = null;
+
   MODULES.forEach((m) => {
     const b = document.createElement("button");
     b.className = "lantern " + (m.lit ? "lit" : "unlit");
     b.dataset.id = m.id;
+    b.setAttribute("draggable", "true");
     b.innerHTML =
       `<span class="dot"></span>` +
       `<span class="label">${m.label}</span>` +
       `<span class="state">${m.lit ? "ready" : "soon"}</span>`;
+
     if (m.lit) {
       b.addEventListener("click", () => openModule(m.id));
     } else {
       b.disabled = true;
       b.setAttribute("aria-disabled", "true");
     }
+
+    b.addEventListener("dragstart", (e) => {
+      dragSrc = b;
+      setTimeout(() => b.classList.add("lantern-dragging"), 0);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    b.addEventListener("dragend", () => {
+      b.classList.remove("lantern-dragging");
+      nav.querySelectorAll(".lantern").forEach((l) =>
+        l.classList.remove("lantern-drag-above", "lantern-drag-below")
+      );
+    });
+    b.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (!dragSrc || b === dragSrc) return;
+      nav.querySelectorAll(".lantern").forEach((l) =>
+        l.classList.remove("lantern-drag-above", "lantern-drag-below")
+      );
+      const rect = b.getBoundingClientRect();
+      b.classList.add(
+        e.clientY < rect.top + rect.height / 2
+          ? "lantern-drag-above"
+          : "lantern-drag-below"
+      );
+    });
+    b.addEventListener("dragleave", () => {
+      b.classList.remove("lantern-drag-above", "lantern-drag-below");
+    });
+    b.addEventListener("drop", (e) => {
+      e.preventDefault();
+      b.classList.remove("lantern-drag-above", "lantern-drag-below");
+      if (!dragSrc || dragSrc === b) return;
+      const rect = b.getBoundingClientRect();
+      const above = e.clientY < rect.top + rect.height / 2;
+      nav.insertBefore(dragSrc, above ? b : b.nextSibling);
+      const newOrder = Array.from(nav.querySelectorAll(".lantern")).map((l) => l.dataset.id);
+      MODULES.sort((a, bm) => newOrder.indexOf(a.id) - newOrder.indexOf(bm.id));
+      localStorage.setItem("dmico-rail-order", JSON.stringify(newOrder));
+    });
+
     nav.appendChild(b);
   });
 }
