@@ -388,6 +388,13 @@ input, button { font-family: inherit; }
 .r-tab.current { background: var(--surface-2); color: var(--ink); box-shadow: var(--shadow); }
 .r-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
 
+/* Draggable tab states */
+.r-tab[draggable] { cursor: grab; user-select: none; }
+.r-tab[draggable]:active { cursor: grabbing; }
+.r-tab-dragging { opacity: 0.35; }
+.r-tab-drag-before { box-shadow: -3px 0 0 var(--lantern); }
+.r-tab-drag-after  { box-shadow:  3px 0 0 var(--lantern); }
+
 .r-btn { width: auto; margin: 0; }
 
 .r-searchbar, .r-libbar {
