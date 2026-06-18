@@ -28,7 +28,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -51,6 +51,11 @@ window.renderDashboard = async function (container, sb) {
       sb.from("finance_expenses").select("amount, logged_at"),
       sb.from("finance_goals").select("label, target, current"),
       sb.from("thesis_chapters").select("title, target_words, current_words, status"),
+      sb.from("finance_income")
+        .select("amount")
+        .eq("year", today.getFullYear())
+        .eq("month", today.getMonth())
+        .limit(1),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -112,11 +117,16 @@ window.renderDashboard = async function (container, sb) {
   const doneChapters = chapters.filter((c) => c.status === "done").length;
 
   // Read monthly budget limit from localStorage (set in Finance module).
-  const budgetRaw = localStorage.getItem("dmico-hub-monthly-budget");
+  const budgetRaw   = localStorage.getItem("dmico-hub-monthly-budget");
   const budgetLimit = budgetRaw ? parseFloat(budgetRaw) : null;
   const overBudget  = budgetLimit != null && monthSpend > budgetLimit;
   const nearBudget  = budgetLimit != null && !overBudget && monthSpend / budgetLimit >= 0.8;
   const fmtRM = (n) => "RM " + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Savings rate from this month's income (if logged).
+  const incomeAmt  = thisMonthIncome?.data?.[0] ? Number(thisMonthIncome.data[0].amount) : null;
+  const netSavings = incomeAmt !== null ? incomeAmt - monthSpend : null;
+  const savingsPct = incomeAmt ? Math.round((netSavings / incomeAmt) * 100) : null;
 
   // ── Build cards ────────────────────────────────────────────
   const cards = [
@@ -196,7 +206,11 @@ window.renderDashboard = async function (container, sb) {
       primary: budgetLimit
         ? `${fmtRM(monthSpend)} of ${fmtRM(budgetLimit)}`
         : `RM ${monthSpend.toFixed(2)} this month`,
-      secondary: overBudget
+      secondary: netSavings !== null
+        ? netSavings >= 0
+          ? `Saved ${fmtRM(netSavings)} · ${savingsPct}% this month`
+          : `Deficit ${fmtRM(Math.abs(netSavings))} — over income`
+        : overBudget
         ? `Over limit by ${fmtRM(monthSpend - budgetLimit)}`
         : nearBudget
         ? `${fmtRM(budgetLimit - monthSpend)} left — running close`
@@ -204,8 +218,10 @@ window.renderDashboard = async function (container, sb) {
         ? `${clip(topGoal.label, 24)}: ${topGoal.pct}% funded`
         : budgetLimit
         ? `${fmtRM(budgetLimit - monthSpend)} remaining`
-        : "No goals set yet",
-      tone: overBudget ? "orange" : nearBudget ? "yellow" : topGoal?.pct >= 100 ? "green" : topGoal ? "default" : "dim",
+        : "Log allowance in Overview to track savings",
+      tone: netSavings !== null
+        ? netSavings < 0 ? "orange" : savingsPct >= 20 ? "green" : "yellow"
+        : overBudget ? "orange" : nearBudget ? "yellow" : topGoal?.pct >= 100 ? "green" : topGoal ? "default" : "dim",
     },
     {
       id: "thesis",
