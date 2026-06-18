@@ -95,12 +95,19 @@
     SB   = sb;
     root = container;
     root.innerHTML = `
-      <div class="r-tabs" role="tablist">
-        <button class="r-tab current" data-tab="overview">Overview</button>
-        <button class="r-tab" data-tab="expenses">Expenses</button>
-        <button class="r-tab" data-tab="goals">Goals</button>
-      </div>
-      <div id="fin-panel"></div>`;
+      <div class="fin-layout">
+        <div class="fin-main">
+          <div class="r-tabs" role="tablist">
+            <button class="r-tab current" data-tab="overview">Overview</button>
+            <button class="r-tab" data-tab="expenses">Expenses</button>
+            <button class="r-tab" data-tab="goals">Goals</button>
+          </div>
+          <div id="fin-panel"></div>
+        </div>
+        <aside class="fin-sidebar">
+          <div id="fin-wishlist"></div>
+        </aside>
+      </div>`;
     root.querySelectorAll(".r-tab").forEach((t) =>
       t.addEventListener("click", () => {
         root.querySelectorAll(".r-tab").forEach((x) =>
@@ -112,6 +119,7 @@
       })
     );
     renderOverview();
+    renderWishlist(el("fin-wishlist"));
   }
 
   // ════════════════════════════════════════════════════════════
@@ -638,6 +646,153 @@
         <span class="fin-ov-section-label">Goal Projections</span>
       </div>
       <div class="fin-ov-proj-list">${rows}</div>`;
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  WISHLIST SIDEBAR
+  // ════════════════════════════════════════════════════════════
+
+  async function renderWishlist(container) {
+    if (!container) return;
+    container.innerHTML = `<p class="fin-wl-loading r-status">Loading…</p>`;
+
+    const now = new Date();
+    const thisYear = now.getFullYear(), thisMonth = now.getMonth();
+
+    const windowMonths = [];
+    for (let i = 5; i >= 0; i--) {
+      let m = thisMonth - i, y = thisYear;
+      while (m < 0) { m += 12; y--; }
+      windowMonths.push({ year: y, month: m });
+    }
+    const windowStart = new Date(windowMonths[0].year, windowMonths[0].month, 1).toISOString();
+    const windowEnd   = new Date(thisYear, thisMonth + 1, 1).toISOString();
+
+    const [settingsRes, allIncomeRes, expenseRes, surplusRes, wishlistRes] = await Promise.all([
+      SB.from("finance_settings").select("*").limit(1),
+      SB.from("finance_income").select("*")
+        .or(`year.gt.${windowMonths[0].year},and(year.eq.${windowMonths[0].year},month.gte.${windowMonths[0].month})`)
+        .order("year").order("month"),
+      SB.from("finance_expenses").select("amount, logged_at")
+        .gte("logged_at", windowStart).lt("logged_at", windowEnd),
+      SB.from("finance_surplus").select("amount, logged_at")
+        .gte("logged_at", windowStart).lt("logged_at", windowEnd),
+      SB.from("finance_wishlist").select("*").order("created_at"),
+    ]);
+
+    const settings   = settingsRes.data?.[0] || { opening_balance: 0 };
+    const allIncome  = allIncomeRes.data || [];
+    const allExp     = expenseRes.data   || [];
+    const allSurplus = surplusRes.data   || [];
+    const items      = wishlistRes.data  || [];
+
+    // Compute totalSaved and avgMonthlySavings from 6-month window.
+    const monthlyNets = windowMonths.map(({ year, month }) => {
+      const inc = allIncome.find((r) => r.year === year && r.month === month);
+      const surplusAmt = allSurplus
+        .filter((s) => { const d = new Date(s.logged_at); return d.getFullYear() === year && d.getMonth() === month; })
+        .reduce((s, r) => s + Number(r.amount), 0);
+      const exp = allExp
+        .filter((e) => { const d = new Date(e.logged_at); return d.getFullYear() === year && d.getMonth() === month; })
+        .reduce((s, e) => s + Number(e.amount), 0);
+      const hasIncome = inc !== undefined || surplusAmt > 0;
+      return hasIncome ? (inc ? Number(inc.amount) : 0) + surplusAmt - exp : null;
+    }).filter((n) => n !== null);
+
+    const openingBalance    = Number(settings.opening_balance || 0);
+    const totalSaved        = openingBalance + monthlyNets.reduce((s, n) => s + n, 0);
+    const recent            = monthlyNets.slice(-3);
+    const avgMonthlySavings = recent.length > 0 ? recent.reduce((s, n) => s + n, 0) / recent.length : null;
+
+    // Sort: can-afford first, then by % funded descending.
+    const sorted = [...items].sort((a, b) => {
+      const pa = Math.min(1, totalSaved / Number(a.price));
+      const pb = Math.min(1, totalSaved / Number(b.price));
+      return pb - pa;
+    });
+
+    const itemCards = sorted.map((item) => {
+      const price     = Number(item.price);
+      const pct       = price > 0 ? Math.min(100, Math.round((totalSaved / price) * 100)) : 100;
+      const remaining = Math.max(0, price - totalSaved);
+      const canAfford = totalSaved >= price;
+
+      let etaHtml = "";
+      if (canAfford) {
+        etaHtml = `<span class="fin-wl-eta fin-wl-eta-ready">Can afford now!</span>`;
+      } else if (avgMonthlySavings !== null && avgMonthlySavings > 0) {
+        const mo = Math.ceil(remaining / avgMonthlySavings);
+        etaHtml = `<span class="fin-wl-eta">~${mo} mo${mo === 1 ? "" : "s"}</span>`;
+      } else {
+        etaHtml = `<span class="fin-wl-eta fin-wl-eta-dim">Log income to see timeline</span>`;
+      }
+
+      const nameHtml = item.url
+        ? `<a class="fin-wl-name" href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.label)}</a>`
+        : `<span class="fin-wl-name">${esc(item.label)}</span>`;
+
+      return `
+        <div class="fin-wl-card${canAfford ? " fin-wl-card-ready" : ""}">
+          <div class="fin-wl-card-top">
+            <div class="fin-wl-card-name-block">
+              ${nameHtml}
+              <span class="fin-wl-price">${fmtRM(price)}</span>
+            </div>
+            <button class="r-mini r-del fin-wl-del" data-id="${esc(item.id)}">×</button>
+          </div>
+          <div class="fin-wl-bar-track">
+            <div class="fin-wl-bar-fill${canAfford ? " fin-wl-bar-ready" : ""}" style="width:${pct}%"></div>
+          </div>
+          <div class="fin-wl-card-foot">
+            <span class="fin-wl-pct">${pct}%</span>
+            ${etaHtml}
+          </div>
+        </div>`;
+    }).join("");
+
+    container.innerHTML = `
+      <div class="fin-wl-head">
+        <span class="fin-wl-title">Wishlist</span>
+        <span class="fin-wl-saved-badge">${fmtRM(totalSaved)} saved</span>
+      </div>
+      <div class="fin-wl-add-form">
+        <input id="fin-wl-label" type="text" placeholder="What do you want?" class="fin-wl-input" />
+        <input id="fin-wl-price" type="number" min="0" step="0.01" placeholder="Price (RM)" class="fin-wl-input" />
+        <input id="fin-wl-url" type="url" placeholder="Shopee / Lazada link (optional)" class="fin-wl-input fin-wl-url-input" />
+        <button id="fin-wl-save" class="r-mini fin-wl-add-btn">+ Add</button>
+        <p id="fin-wl-status" class="r-status"></p>
+      </div>
+      <div class="fin-wl-list">
+        ${itemCards || `<p class="fin-wl-empty">Add something you're saving towards.</p>`}
+      </div>`;
+
+    el("fin-wl-save").addEventListener("click", async () => {
+      const label  = el("fin-wl-label").value.trim();
+      const price  = parseFloat(el("fin-wl-price").value);
+      const url    = el("fin-wl-url").value.trim();
+      const status = el("fin-wl-status");
+      if (!label)            { status.textContent = "Name it first."; return; }
+      if (!price || price <= 0) { status.textContent = "Enter a price."; return; }
+      status.textContent = "Adding…";
+      const { error } = await SB.from("finance_wishlist").insert({
+        label, price, url: url || null,
+      });
+      if (error) { console.error(error); status.textContent = "Couldn't save."; return; }
+      ["fin-wl-label", "fin-wl-price", "fin-wl-url"].forEach((id) => {
+        if (el(id)) el(id).value = "";
+      });
+      status.textContent = "";
+      renderWishlist(container);
+    });
+
+    container.querySelectorAll(".fin-wl-del").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!window.confirm("Remove from wishlist?")) return;
+        const { error } = await SB.from("finance_wishlist").delete().eq("id", btn.dataset.id);
+        if (error) { console.error(error); return; }
+        renderWishlist(container);
+      });
+    });
   }
 
   // ════════════════════════════════════════════════════════════
