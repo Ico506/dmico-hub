@@ -17,7 +17,7 @@ window.renderDashboard = async function (container, sb) {
       <p class="dash-sub">Here's where everything stands.</p>
     </div>
     <div class="dash-grid" id="dash-grid">
-      ${Array.from({ length: 5 }).map(() => `
+      ${Array.from({ length: 6 }).map(() => `
         <div class="dash-card dash-card--loading">
           <div class="dash-skel"></div>
           <div class="dash-skel dash-skel--short"></div>
@@ -28,7 +28,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -50,6 +50,7 @@ window.renderDashboard = async function (container, sb) {
         .limit(1),
       sb.from("finance_expenses").select("amount, logged_at"),
       sb.from("finance_goals").select("label, target, current"),
+      sb.from("thesis_chapters").select("title, target_words, current_words, status"),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -102,6 +103,13 @@ window.renderDashboard = async function (container, sb) {
       pct: g.target > 0 ? Math.round((g.current / g.target) * 100) : 0,
     }))
     .sort((a, b) => b.pct - a.pct)[0] ?? null;
+
+  // ── Thesis ─────────────────────────────────────────────────
+  const chapters = thesisChapters.data ?? [];
+  const totalTarget  = chapters.reduce((s, c) => s + (c.target_words || 0), 0);
+  const totalCurrent = chapters.reduce((s, c) => s + (c.current_words || 0), 0);
+  const thesisPct    = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
+  const doneChapters = chapters.filter((c) => c.status === "done").length;
 
   // Read monthly budget limit from localStorage (set in Finance module).
   const budgetRaw = localStorage.getItem("dmico-hub-monthly-budget");
@@ -198,6 +206,24 @@ window.renderDashboard = async function (container, sb) {
         ? `${fmtRM(budgetLimit - monthSpend)} remaining`
         : "No goals set yet",
       tone: overBudget ? "orange" : nearBudget ? "yellow" : topGoal?.pct >= 100 ? "green" : topGoal ? "default" : "dim",
+    },
+    {
+      id: "thesis",
+      icon: "📝",
+      label: "Thesis",
+      primary: chapters.length === 0
+        ? "No chapters yet"
+        : `${totalCurrent.toLocaleString()} / ${totalTarget.toLocaleString()} words`,
+      secondary: chapters.length === 0
+        ? "Add your first chapter to get started"
+        : `${thesisPct}% complete · ${doneChapters} of ${chapters.length} chapter${chapters.length === 1 ? "" : "s"} done`,
+      tone: chapters.length === 0
+        ? "dim"
+        : thesisPct >= 100
+        ? "green"
+        : thesisPct >= 50
+        ? "yellow"
+        : "default",
     },
   ];
 

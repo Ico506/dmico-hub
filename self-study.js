@@ -1,8 +1,9 @@
 /* ─────────────────────────────────────────────────────────────
-   dmico life os — Self-study module (v2)
+   dmico life os — Self-study module (v3)
    Two halves:
      Plan  — track upcoming exams with a live countdown, plus a
-             Gemma-powered spaced-repetition study-plan generator.
+             Gemini-powered spaced-repetition study-plan generator.
+             Sessions in a generated plan can be ticked off as done.
      Focus — a work/break countdown timer with ratio presets + custom.
    ───────────────────────────────────────────────────────────── */
 
@@ -62,7 +63,10 @@
           <div class="r-field"><label>Date</label><input id="e-date" type="date" /></div>
           <div class="r-field"><label>Study hours you can give per day</label><input id="e-hours" type="number" min="0" step="0.5" placeholder="2" /></div>
         </div>
-        <div class="r-field"><label>Topics to cover (comma separated)</label><input id="e-topics" type="text" placeholder="sampling, validity, thematic analysis" /></div>
+        <div class="r-field">
+          <label>Topics to cover <span class="r-label-optional">(comma-separated — each becomes a study session)</span></label>
+          <input id="e-topics" type="text" placeholder="Chapter 1, Chapter 2, Chapter 3, validity, thematic analysis" />
+        </div>
         <button id="e-save" class="btn-primary r-btn">Add exam</button>
         <p id="e-status" class="r-status"></p>
       </div>
@@ -78,10 +82,10 @@
     if (!title) { status.textContent = "Give it a name first."; return; }
     const row = {
       title,
-      exam_date: el("e-date").value || null,
+      exam_date:     el("e-date").value || null,
       hours_per_day: parseFloat(el("e-hours").value) || null,
-      topics: el("e-topics").value.trim() || null,
-      added_via: "web",
+      topics:        el("e-topics").value.trim() || null,
+      added_via:     "web",
     };
     status.textContent = "Adding…";
     const { error } = await SB.from("study_exams").insert(row);
@@ -97,7 +101,7 @@
     if (error) { console.error(error); list.innerHTML = `<p class="r-status">Couldn't load your exams.</p>`; return; }
     const exams = data || [];
     if (!exams.length) {
-      list.innerHTML = `<div class="empty"><h2>No exams yet</h2><p>Add one above and it shows up here with a live countdown. Hit "Generate plan" to get a spaced-repetition schedule from Gemma.</p></div>`;
+      list.innerHTML = `<div class="empty"><h2>No exams yet</h2><p>Add one above and it shows up here with a live countdown. Hit "Generate plan" to get a spaced-repetition schedule. Enter topics comma-separated so each one becomes its own study session.</p></div>`;
       return;
     }
     list.innerHTML = "";
@@ -126,6 +130,10 @@
         <button class="r-mini r-del">Remove</button>
       </div>`;
 
+    if (hasPlan) {
+      attachSessionListeners(card.querySelector(".s-plan-area"), x.id, x.plan);
+    }
+
     card.querySelector(".s-gen-btn").addEventListener("click", () => generatePlan(x, card));
     card.querySelector(".r-del").addEventListener("click", async () => {
       if (!window.confirm(`Remove "${x.title}"?`)) return;
@@ -144,14 +152,14 @@
 
     btn.disabled = true;
     btn.textContent = "Generating…";
-    area.innerHTML = `<p class="r-status s-plan-thinking">Asking Gemma to map out your schedule…</p>`;
+    area.innerHTML = `<p class="r-status s-plan-thinking">Asking Gemini to map out your schedule…</p>`;
 
     const { data, error } = await SB.functions.invoke("study-plan", {
       body: {
-        title:        exam.title,
-        exam_date:    exam.exam_date,
+        title:         exam.title,
+        exam_date:     exam.exam_date,
         hours_per_day: exam.hours_per_day,
-        topics:       exam.topics,
+        topics:        exam.topics,
       },
     });
 
@@ -170,7 +178,11 @@
       .eq("id", exam.id);
     if (writeErr) console.warn("Couldn't save plan to Supabase:", writeErr);
 
+    // Update local reference so session listeners can write back.
+    exam.plan = data;
+
     area.innerHTML = renderPlanHTML(data);
+    attachSessionListeners(area, exam.id, data);
     btn.disabled = false;
     btn.textContent = "Regenerate plan";
   }
@@ -181,10 +193,14 @@
     const sessions = Array.isArray(plan.sessions) ? plan.sessions : [];
     if (!sessions.length) return "";
 
-    const rows = sessions.map((s) => {
+    const rows = sessions.map((s, i) => {
       const typeClass = `s-type-${esc(s.type || "learn")}`;
+      const done = !!s.done;
       return `
-        <div class="s-session">
+        <div class="s-session${done ? " s-session-done" : ""}" data-idx="${i}">
+          <label class="s-session-check-label" title="${done ? "Mark undone" : "Mark done"}">
+            <input type="checkbox" class="s-session-check" data-idx="${i}" ${done ? "checked" : ""} />
+          </label>
           <span class="s-session-label">${esc(s.label || "")}</span>
           <div class="s-session-body">
             <strong>${esc(s.topic || "")}</strong>${s.task ? ` &mdash; ${esc(s.task)}` : ""}
@@ -194,6 +210,10 @@
         </div>`;
     }).join("");
 
+    const doneSessions = sessions.filter((s) => s.done).length;
+    const total = sessions.length;
+    const allDone = doneSessions === total;
+
     const genDate = plan.generated_at
       ? new Date(plan.generated_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
       : null;
@@ -202,9 +222,44 @@
     return `
       <div class="s-plan">
         ${plan.summary ? `<p class="s-plan-summary">${esc(plan.summary)}</p>` : ""}
+        <div class="s-plan-progress">
+          <div class="s-plan-progress-fill" style="width:${total > 0 ? Math.round((doneSessions / total) * 100) : 0}%"></div>
+        </div>
+        <p class="s-plan-prog-label">${doneSessions} of ${total} session${total === 1 ? "" : "s"} done${allDone ? " — ready!" : ""}</p>
         <div class="s-plan-sessions">${rows}</div>
         ${genDate ? `<p class="s-plan-meta">Generated ${genDate}${model ? ` via ${esc(model)}` : ""}</p>` : ""}
       </div>`;
+  }
+
+  // ── Session tick listeners ─────────────────────────────────
+  function attachSessionListeners(area, examId, plan) {
+    area.querySelectorAll(".s-session-check").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        const idx = parseInt(cb.dataset.idx, 10);
+        if (!plan.sessions || !plan.sessions[idx]) return;
+        plan.sessions[idx].done = cb.checked;
+
+        // Update visual state of the session row.
+        const row = cb.closest(".s-session");
+        if (row) row.classList.toggle("s-session-done", cb.checked);
+
+        // Update progress bar and label.
+        const planEl = area.querySelector(".s-plan");
+        if (planEl) {
+          const total = plan.sessions.length;
+          const done  = plan.sessions.filter((s) => s.done).length;
+          const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+          const fill  = planEl.querySelector(".s-plan-progress-fill");
+          const label = planEl.querySelector(".s-plan-prog-label");
+          if (fill)  fill.style.width = `${pct}%`;
+          if (label) label.textContent = `${done} of ${total} session${total === 1 ? "" : "s"} done${done === total ? " — ready!" : ""}`;
+        }
+
+        // Write back to Supabase.
+        const { error } = await SB.from("study_exams").update({ plan }).eq("id", examId);
+        if (error) console.warn("Couldn't save session state:", error);
+      });
+    });
   }
 
   // ── Focus tab ──────────────────────────────────────────────
@@ -231,7 +286,7 @@
 
   function paintTimer() {
     const disp = el("s-time");
-    if (!disp) return; // user switched tabs; keep counting silently
+    if (!disp) return;
     disp.textContent = fmt(timer.remaining);
     el("s-phase").textContent = timer.phase === "focus" ? "Focus" : "Break";
     el("s-phase").className = "s-phase " + timer.phase;

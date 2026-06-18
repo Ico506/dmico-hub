@@ -196,11 +196,14 @@
           <option value="shipped" ${p.status === "shipped" ? "selected" : ""}>Shipped</option>
         </select>
         <button class="r-mini gd-quick-log-btn">Log</button>
+        <button class="r-mini gd-ms-toggle-btn">Milestones</button>
         <button class="r-mini r-del">Remove</button>
       </div>
-      <div class="gd-quick-log-form" hidden></div>`;
+      <div class="gd-quick-log-form" hidden></div>
+      <div class="gd-ms-area" hidden></div>`;
 
     card.querySelector(".gd-quick-log-btn").addEventListener("click", () => toggleQuickLog(p, card));
+    card.querySelector(".gd-ms-toggle-btn").addEventListener("click", () => toggleMilestones(p, card));
 
     card.querySelector(".gd-status-select").addEventListener("change", async (e) => {
       const newStatus = e.target.value;
@@ -470,6 +473,106 @@
     const { error } = await SB.from("gamedev_ideas").update({ status: newStatus }).eq("id", idea.id);
     if (error) { console.error(error); return; }
     drawKanban();
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  MILESTONES (inline in project cards)
+  // ════════════════════════════════════════════════════════════
+
+  async function toggleMilestones(p, card) {
+    const area = card.querySelector(".gd-ms-area");
+    if (!area.hidden) { area.hidden = true; area.innerHTML = ""; return; }
+    area.hidden = false;
+    await drawMilestones(p, area);
+  }
+
+  async function drawMilestones(p, area) {
+    area.innerHTML = `<p class="r-status">Loading…</p>`;
+    const { data, error } = await SB
+      .from("gamedev_milestones")
+      .select("*")
+      .eq("project_id", p.id)
+      .order("created_at", { ascending: true });
+    if (error) { console.error(error); area.innerHTML = `<p class="r-status">Couldn't load milestones.</p>`; return; }
+    const milestones = data || [];
+
+    const openOnes = milestones.filter((m) => m.status === "open");
+    const doneOnes = milestones.filter((m) => m.status === "done");
+    const sorted   = [...openOnes, ...doneOnes];
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const rows = sorted.map((m) => {
+      const isDone    = m.status === "done";
+      const isOverdue = m.due_date && m.due_date < today && !isDone;
+      return `
+        <div class="gd-ms-item${isDone ? " gd-ms-item-done" : ""}" data-ms-id="${esc(m.id)}">
+          <label class="gd-ms-check-label">
+            <input type="checkbox" class="gd-ms-check" data-ms-id="${esc(m.id)}" ${isDone ? "checked" : ""} />
+          </label>
+          <span class="gd-ms-title">${esc(m.title)}</span>
+          ${m.due_date ? `<span class="gd-ms-due${isOverdue ? " gd-ms-due-over" : ""}">${esc(m.due_date)}</span>` : ""}
+          <button class="r-mini gd-ms-del" data-ms-id="${esc(m.id)}" title="Remove">×</button>
+        </div>`;
+    }).join("");
+
+    area.innerHTML = `
+      <div class="gd-ms-list">${rows || '<p class="r-status gd-ms-empty">No milestones yet.</p>'}</div>
+      <div class="gd-ms-add-row">
+        <input type="text" class="gd-ms-title-input" placeholder="New milestone…" />
+        <input type="date" class="gd-ms-due-input" />
+        <button class="r-mini gd-ms-add-btn">Add</button>
+      </div>`;
+
+    // Tick / untick
+    area.querySelectorAll(".gd-ms-check").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        const newStatus = cb.checked ? "done" : "open";
+        const { error: err } = await SB
+          .from("gamedev_milestones")
+          .update({ status: newStatus })
+          .eq("id", cb.dataset.msId);
+        if (err) { console.error(err); return; }
+        const item = area.querySelector(`.gd-ms-item[data-ms-id="${cb.dataset.msId}"]`);
+        if (item) item.classList.toggle("gd-ms-item-done", cb.checked);
+      });
+    });
+
+    // Delete
+    area.querySelectorAll(".gd-ms-del").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const { error: err } = await SB
+          .from("gamedev_milestones")
+          .delete()
+          .eq("id", btn.dataset.msId);
+        if (err) { console.error(err); return; }
+        drawMilestones(p, area);
+      });
+    });
+
+    // Add new
+    area.querySelector(".gd-ms-add-btn").addEventListener("click", async () => {
+      const titleInput = area.querySelector(".gd-ms-title-input");
+      const dueInput   = area.querySelector(".gd-ms-due-input");
+      const title = titleInput.value.trim();
+      if (!title) { titleInput.focus(); return; }
+      const { error: err } = await SB.from("gamedev_milestones").insert({
+        project_id: p.id,
+        title,
+        due_date:   dueInput.value || null,
+        status:     "open",
+        added_via:  "web",
+      });
+      if (err) { console.error(err); return; }
+      titleInput.value = "";
+      dueInput.value   = "";
+      drawMilestones(p, area);
+    });
+
+    // Allow Enter key in the title input to submit.
+    area.querySelector(".gd-ms-title-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") area.querySelector(".gd-ms-add-btn").click();
+    });
   }
 
   window.renderGameDev = render;

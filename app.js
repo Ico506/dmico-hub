@@ -31,6 +31,8 @@ const MODULES = [
     blurb: "JadeFrog Studio projects, devlog, and idea board." },
   { id: "finance",    label: "Finance",    lit: true,
     blurb: "Expense tracker and savings goals leaderboard." },
+  { id: "thesis",     label: "Thesis",     lit: true,
+    blurb: "MPhil chapter tracker and writing log." },
 ];
 
 const el = (id) => document.getElementById(id);
@@ -108,6 +110,8 @@ function openModule(id) {
     window.renderGameDev(body, sb);
   } else if (id === "finance" && window.renderFinance) {
     window.renderFinance(body, sb);
+  } else if (id === "thesis" && window.renderThesis) {
+    window.renderThesis(body, sb);
   } else {
     body.innerHTML =
       `<div class="empty">

@@ -88,9 +88,18 @@
             <option value="">— no project —</option>
           </select>
         </div>
+        <div class="r-field fin-rec-toggle-row">
+          <label class="fin-rec-check-label">
+            <input type="checkbox" id="fe-recurring" />
+            Recurring expense
+          </label>
+          <input id="fe-rec-label" type="text" placeholder="Label (e.g. Spotify, Rent)" class="fin-rec-name" hidden />
+        </div>
         <button id="fe-save" class="btn-primary r-btn">Log expense</button>
         <p id="fe-status" class="r-status"></p>
       </div>
+
+      <div id="fin-recurring-section" class="fin-rec-section"></div>
 
       <div class="fin-month-nav">
         <button id="fin-prev" class="r-mini fin-nav-btn">&#8592;</button>
@@ -105,6 +114,13 @@
     el("fe-save").addEventListener("click", addExpense);
     el("fin-prev").addEventListener("click", () => shiftMonth(-1));
     el("fin-next").addEventListener("click", () => shiftMonth(1));
+
+    // Show/hide recurring label input when checkbox is toggled.
+    el("fe-recurring").addEventListener("change", () => {
+      const recLabel = el("fe-rec-label");
+      recLabel.hidden = !el("fe-recurring").checked;
+      if (!recLabel.hidden) recLabel.focus();
+    });
 
     // Populate project dropdown (non-blocking — form is usable while this loads).
     SB.from("gamedev_projects")
@@ -126,6 +142,97 @@
     await refreshExpenses();
   }
 
+  // ── Recurring expenses section ─────────────────────────────
+  async function drawRecurring() {
+    const section = el("fin-recurring-section");
+    if (!section) return;
+
+    const { data, error } = await SB
+      .from("finance_expenses")
+      .select("*")
+      .eq("is_recurring", true)
+      .order("logged_at", { ascending: false });
+    if (error || !data || !data.length) { section.innerHTML = ""; return; }
+
+    // Deduplicate by recur_label (keep most recent per label).
+    const seen = new Set();
+    const templates = [];
+    data.forEach((e) => {
+      const key = e.recur_label || `${e.category}|${e.note}|${e.amount}`;
+      if (!seen.has(key)) { seen.add(key); templates.push({ ...e, _key: key }); }
+    });
+
+    // Check which ones already have an entry this month.
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+    const { data: thisMonth } = await SB
+      .from("finance_expenses")
+      .select("recur_label, category, note, amount")
+      .eq("is_recurring", true)
+      .gte("logged_at", monthStart)
+      .lt("logged_at", monthEnd);
+    const loggedThisMonth = new Set((thisMonth || []).map((e) => e.recur_label || `${e.category}|${e.note}|${e.amount}`));
+
+    const rows = templates.map((t) => {
+      const alreadyLogged = loggedThisMonth.has(t._key);
+      return `
+        <div class="fin-rec-item">
+          <div class="fin-rec-item-info">
+            <span class="fin-rec-item-label">${esc(t.recur_label || t.category || "Recurring")}</span>
+            <span class="fin-rec-item-amount">${fmtRM(t.amount)}</span>
+            ${t.category ? `<span class="fin-rec-item-cat">${esc(t.category)}</span>` : ""}
+          </div>
+          ${alreadyLogged
+            ? `<span class="fin-rec-logged">Logged this month</span>`
+            : `<button class="r-mini fin-rec-log-btn"
+                data-amount="${esc(String(t.amount))}"
+                data-cat="${esc(t.category || "")}"
+                data-note="${esc(t.note || "")}"
+                data-recur-label="${esc(t.recur_label || "")}"
+                data-project="${esc(t.project_id || "")}">Log this month</button>`}
+        </div>`;
+    }).join("");
+
+    section.innerHTML = `
+      <div class="fin-rec-header">
+        <span class="fin-rec-title">Recurring</span>
+        <span class="fin-rec-count">${templates.length} item${templates.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="fin-rec-list">${rows}</div>`;
+
+    section.querySelectorAll(".fin-rec-log-btn").forEach((btn) => {
+      btn.addEventListener("click", () => logRecurringThisMonth(btn));
+    });
+  }
+
+  async function logRecurringThisMonth(btn) {
+    btn.disabled = true;
+    btn.textContent = "Logging…";
+    const row = {
+      amount:       parseFloat(btn.dataset.amount),
+      category:     btn.dataset.cat || null,
+      note:         btn.dataset.note || null,
+      recur_label:  btn.dataset.recurLabel || null,
+      is_recurring: true,
+      logged_at:    new Date().toISOString(),
+      added_via:    "web",
+    };
+    if (btn.dataset.project) row.project_id = btn.dataset.project;
+    const { error } = await SB.from("finance_expenses").insert(row);
+    if (error) { console.error(error); btn.disabled = false; btn.textContent = "Log this month"; return; }
+    // Replace button with "Logged" badge without full redraw.
+    const logged = document.createElement("span");
+    logged.className = "fin-rec-logged";
+    logged.textContent = "Logged this month";
+    btn.replaceWith(logged);
+    // Also refresh the month view if we're viewing the current month.
+    const now = new Date();
+    if (activeMonth === now.getMonth() && activeYear === now.getFullYear()) {
+      await refreshExpenses();
+    }
+  }
+
   function shiftMonth(dir) {
     activeMonth += dir;
     if (activeMonth < 0)  { activeMonth = 11; activeYear--; }
@@ -137,26 +244,30 @@
     const msg = el("fe-status");
     const amount = parseFloat(el("fe-amount").value);
     if (!amount || amount <= 0) { msg.textContent = "Enter a valid amount."; return; }
-    const dateVal = el("fe-date").value;
+    const dateVal    = el("fe-date").value;
+    const isRecur    = el("fe-recurring")?.checked || false;
+    const recurLabel = isRecur ? (el("fe-rec-label")?.value.trim() || null) : null;
     const row = {
       amount,
-      category:  el("fe-cat").value.trim() || null,
-      note:      el("fe-note").value.trim() || null,
-      logged_at: dateVal ? new Date(dateVal + "T12:00:00").toISOString() : new Date().toISOString(),
-      added_via: "web",
+      category:     el("fe-cat").value.trim() || null,
+      note:         el("fe-note").value.trim() || null,
+      logged_at:    dateVal ? new Date(dateVal + "T12:00:00").toISOString() : new Date().toISOString(),
+      added_via:    "web",
+      is_recurring: isRecur,
+      recur_label:  recurLabel,
     };
     const selectedProject = el("fe-project")?.value;
     if (selectedProject) row.project_id = selectedProject;
     msg.textContent = "Logging…";
     const { error } = await SB.from("finance_expenses").insert(row);
     if (error) { console.error(error); msg.textContent = "Couldn't save. Try again."; return; }
-    el("fe-amount").value  = "";
-    el("fe-cat").value     = "";
-    el("fe-note").value    = "";
-    el("fe-date").value    = new Date().toISOString().slice(0, 10);
-    if (el("fe-project")) el("fe-project").value = "";
+    el("fe-amount").value = "";
+    el("fe-cat").value    = "";
+    el("fe-note").value   = "";
+    el("fe-date").value   = new Date().toISOString().slice(0, 10);
+    if (el("fe-project"))   el("fe-project").value   = "";
+    if (el("fe-recurring")) { el("fe-recurring").checked = false; el("fe-rec-label").hidden = true; el("fe-rec-label").value = ""; }
     msg.textContent = "";
-    // If the logged entry falls in the current viewed month, refresh.
     const entryMonth = new Date(row.logged_at).getMonth();
     const entryYear  = new Date(row.logged_at).getFullYear();
     if (entryMonth === activeMonth && entryYear === activeYear) {
@@ -165,6 +276,9 @@
   }
 
   async function refreshExpenses() {
+    // Recurring section (load in parallel with month data).
+    drawRecurring();
+
     // Update month label.
     const labelEl = el("fin-month-label");
     if (labelEl) labelEl.textContent = `${MONTH_NAMES[activeMonth]} ${activeYear}`;
