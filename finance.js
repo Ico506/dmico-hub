@@ -731,9 +731,15 @@
         ? `<a class="fin-wl-name" href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.label)}</a>`
         : `<span class="fin-wl-name">${esc(item.label)}</span>`;
 
+      const thumbHtml = item.image_url
+        ? `<img class="fin-wl-thumb" src="${esc(item.image_url)}" alt="${esc(item.label)}"
+               loading="lazy" onerror="this.style.display='none'" />`
+        : "";
+
       return `
         <div class="fin-wl-card${canAfford ? " fin-wl-card-ready" : ""}">
           <div class="fin-wl-card-top">
+            ${thumbHtml}
             <div class="fin-wl-card-name-block">
               ${nameHtml}
               <span class="fin-wl-price">${fmtRM(price)}</span>
@@ -759,6 +765,7 @@
         <input id="fin-wl-label" type="text" placeholder="What do you want?" class="fin-wl-input" />
         <input id="fin-wl-price" type="number" min="0" step="0.01" placeholder="Price (RM)" class="fin-wl-input" />
         <input id="fin-wl-url" type="url" placeholder="Shopee / Lazada link (optional)" class="fin-wl-input fin-wl-url-input" />
+        <input id="fin-wl-image-url" type="url" placeholder="Image URL (right-click → copy image address)" class="fin-wl-input fin-wl-url-input" />
         <button id="fin-wl-save" class="r-mini fin-wl-add-btn">+ Add</button>
         <p id="fin-wl-status" class="r-status"></p>
       </div>
@@ -767,18 +774,19 @@
       </div>`;
 
     el("fin-wl-save").addEventListener("click", async () => {
-      const label  = el("fin-wl-label").value.trim();
-      const price  = parseFloat(el("fin-wl-price").value);
-      const url    = el("fin-wl-url").value.trim();
-      const status = el("fin-wl-status");
-      if (!label)            { status.textContent = "Name it first."; return; }
+      const label    = el("fin-wl-label").value.trim();
+      const price    = parseFloat(el("fin-wl-price").value);
+      const url      = el("fin-wl-url").value.trim();
+      const imageUrl = el("fin-wl-image-url").value.trim();
+      const status   = el("fin-wl-status");
+      if (!label)               { status.textContent = "Name it first."; return; }
       if (!price || price <= 0) { status.textContent = "Enter a price."; return; }
       status.textContent = "Adding…";
       const { error } = await SB.from("finance_wishlist").insert({
-        label, price, url: url || null,
+        label, price, url: url || null, image_url: imageUrl || null,
       });
       if (error) { console.error(error); status.textContent = "Couldn't save."; return; }
-      ["fin-wl-label", "fin-wl-price", "fin-wl-url"].forEach((id) => {
+      ["fin-wl-label", "fin-wl-price", "fin-wl-url", "fin-wl-image-url"].forEach((id) => {
         if (el(id)) el(id).value = "";
       });
       status.textContent = "";
