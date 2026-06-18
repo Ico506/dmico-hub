@@ -35,6 +35,18 @@
     return "RM " + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  // ── Monthly budget cap (localStorage, no schema change) ────
+  const BUDGET_KEY = "dmico-hub-monthly-budget";
+
+  function getBudget() {
+    const v = localStorage.getItem(BUDGET_KEY);
+    return v ? parseFloat(v) : null;
+  }
+  function setBudget(n) {
+    if (n && n > 0) localStorage.setItem(BUDGET_KEY, String(n));
+    else localStorage.removeItem(BUDGET_KEY);
+  }
+
   // ── layout ─────────────────────────────────────────────────
   function render(container, sb) {
     SB   = sb;
@@ -279,12 +291,47 @@
   }
 
   function buildSummary(entries, container) {
-    if (!entries.length) {
-      container.innerHTML = `<div class="fin-summary-card"><span class="fin-total">RM 0.00</span><span class="fin-total-label">spent this month</span></div>`;
-      return;
+    const total = entries.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const budget = getBudget();
+
+    // Budget section HTML.
+    let budgetHTML = "";
+    if (budget) {
+      const pct = Math.min(100, Math.round((total / budget) * 100));
+      const over = total > budget;
+      const warn = !over && total / budget >= 0.8;
+      const fillClass = over ? "fin-budget-fill fin-budget-over"
+        : warn ? "fin-budget-fill fin-budget-warn"
+        : "fin-budget-fill";
+      const statusText = over
+        ? `Over by ${fmtRM(total - budget)}`
+        : warn
+        ? `${fmtRM(budget - total)} left — close to limit`
+        : `${fmtRM(budget - total)} remaining`;
+      budgetHTML = `
+        <div class="fin-budget-row">
+          <span class="fin-budget-label">Limit ${fmtRM(budget)}</span>
+          <span class="fin-budget-status${over ? " fin-budget-status-over" : warn ? " fin-budget-status-warn" : ""}">${statusText}</span>
+          <button class="r-mini fin-set-budget-btn">Edit</button>
+        </div>
+        <div class="fin-budget-track">
+          <div class="${fillClass}" style="width:${pct}%"></div>
+        </div>`;
     }
 
-    const total = entries.reduce((s, e) => s + Number(e.amount || 0), 0);
+    if (!entries.length) {
+      container.innerHTML = `
+        <div class="fin-summary-card">
+          <div class="fin-summary-top">
+            <span class="fin-total">RM 0.00</span>
+            <span class="fin-total-label">spent this month</span>
+            ${!budget ? `<button class="r-mini fin-set-budget-btn fin-set-budget-new">Set limit</button>` : ""}
+          </div>
+          ${budgetHTML}
+        </div>`;
+      container.querySelectorAll(".fin-set-budget-btn").forEach((b) => b.addEventListener("click", promptBudget));
+      return;
+    }
 
     // Category breakdown.
     const cats = {};
@@ -306,14 +353,34 @@
         </div>`;
     }).join("");
 
+    const over = budget && total > budget;
     container.innerHTML = `
       <div class="fin-summary-card">
         <div class="fin-summary-top">
-          <span class="fin-total">${fmtRM(total)}</span>
+          <span class="fin-total${over ? " fin-total-over" : ""}">${fmtRM(total)}</span>
           <span class="fin-total-label">spent &middot; ${entries.length} entr${entries.length === 1 ? "y" : "ies"}</span>
+          ${!budget ? `<button class="r-mini fin-set-budget-btn fin-set-budget-new">Set limit</button>` : ""}
         </div>
+        ${budgetHTML}
         <div class="fin-cats">${bars}</div>
       </div>`;
+
+    container.querySelectorAll(".fin-set-budget-btn").forEach((b) => b.addEventListener("click", promptBudget));
+  }
+
+  function promptBudget() {
+    const current = getBudget();
+    const raw = window.prompt(
+      current
+        ? `Monthly spending limit (RM):\nCurrently set to ${fmtRM(current)}. Leave blank to remove.`
+        : "Set a monthly spending limit (RM):"
+    );
+    if (raw === null) return; // cancelled
+    if (raw.trim() === "") { setBudget(null); refreshExpenses(); return; }
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0) { alert("Enter a valid amount."); return; }
+    setBudget(n);
+    refreshExpenses();
   }
 
   function buildEntryList(entries, container) {

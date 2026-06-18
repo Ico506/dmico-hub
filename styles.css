@@ -1417,3 +1417,71 @@ input, button { font-family: inherit; }
   color: var(--ink-faint);
   margin-bottom: 6px;
 }
+
+/* Budget cap */
+
+.fin-total-over {
+  color: var(--clay);
+}
+
+.fin-set-budget-new {
+  margin-left: auto;
+  font-size: 0.72rem;
+}
+
+.fin-budget-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
+  flex-wrap: wrap;
+}
+
+.fin-budget-label {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.fin-budget-status {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  flex: 1;
+}
+
+.fin-budget-status-warn {
+  color: var(--lantern);
+}
+
+.fin-budget-status-over {
+  color: var(--clay);
+  font-weight: 600;
+}
+
+.fin-set-budget-btn {
+  font-size: 0.72rem;
+  margin-left: auto;
+}
+
+.fin-budget-track {
+  height: 5px;
+  background: var(--line);
+  border-radius: 3px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.fin-budget-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.fin-budget-fill.fin-budget-warn {
+  background: var(--lantern);
+}
+
+.fin-budget-fill.fin-budget-over {
+  background: var(--clay);
+  width: 100% !important;
+}
