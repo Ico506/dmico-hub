@@ -2374,11 +2374,6 @@ a.fin-wl-name:hover { color: var(--lantern); text-decoration: underline; }
 }
 
 .fin-wl-eta-dim { color: var(--line); }
-4px;
-}
-
-.fin-ov-rule-save-block {
-
 /* ── Wishlist thumbnail ─────────────────────────────────────── */
 .fin-wl-thumb {
   width: 52px;
@@ -2388,9 +2383,6 @@ a.fin-wl-name:hover { color: var(--lantern); text-decoration: underline; }
   border: 1.5px solid var(--line);
   flex-shrink: 0;
 }
-
-.fin-wl-ca
-rd-top { align-items: center; }
 
 /* ─────────────────────────────────────────────────────────────
    FINANCE — Overview tab (.fin-ov-*)
