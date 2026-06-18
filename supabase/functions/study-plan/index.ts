@@ -12,7 +12,7 @@
 //   GEMINI_MODEL     (optional, defaults to gemini-2.5-flash)
 
 const GEMINI_KEY   = Deno.env.get("GEMINI_API_KEY") ?? "";
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemma-4-31b-it";
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
 const GEMINI_URL   =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
 

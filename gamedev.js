@@ -195,8 +195,12 @@
           <option value="on_hold" ${p.status === "on_hold" ? "selected" : ""}>On hold</option>
           <option value="shipped" ${p.status === "shipped" ? "selected" : ""}>Shipped</option>
         </select>
+        <button class="r-mini gd-quick-log-btn">Log</button>
         <button class="r-mini r-del">Remove</button>
-      </div>`;
+      </div>
+      <div class="gd-quick-log-form" hidden></div>`;
+
+    card.querySelector(".gd-quick-log-btn").addEventListener("click", () => toggleQuickLog(p, card));
 
     card.querySelector(".gd-status-select").addEventListener("change", async (e) => {
       const newStatus = e.target.value;
@@ -216,6 +220,50 @@
     });
 
     container.appendChild(card);
+  }
+
+  // ── Quick log (inline form on project card) ────────────────
+  function toggleQuickLog(p, card) {
+    const formEl = card.querySelector(".gd-quick-log-form");
+    if (!formEl.hidden) { formEl.hidden = true; formEl.innerHTML = ""; return; }
+    formEl.innerHTML = `
+      <textarea class="gd-log-ta" rows="3" placeholder="What did you work on?"></textarea>
+      <div class="gd-log-actions">
+        <button class="btn-primary r-btn gd-log-save-btn">Save</button>
+        <button class="btn-ghost r-btn gd-log-cancel-btn">Cancel</button>
+        <span class="gd-log-status r-status"></span>
+      </div>`;
+    formEl.hidden = false;
+    formEl.querySelector(".gd-log-ta").focus();
+    formEl.querySelector(".gd-log-cancel-btn").addEventListener("click", () => {
+      formEl.hidden = true; formEl.innerHTML = "";
+    });
+    formEl.querySelector(".gd-log-save-btn").addEventListener("click", () => submitQuickLog(p, formEl));
+  }
+
+  async function submitQuickLog(p, formEl) {
+    const ta     = formEl.querySelector(".gd-log-ta");
+    const status = formEl.querySelector(".gd-log-status");
+    const content = ta.value.trim();
+    if (!content) { status.textContent = "Write something first."; return; }
+    const saveBtn = formEl.querySelector(".gd-log-save-btn");
+    saveBtn.disabled = true;
+    status.textContent = "Logging…";
+    const { error } = await SB.from("gamedev_logs").insert({
+      content,
+      project_id:   p.id,
+      project_name: p.name,
+      logged_at:    new Date().toISOString(),
+      added_via:    "web",
+    });
+    if (error) {
+      console.error(error);
+      saveBtn.disabled = false;
+      status.textContent = "Couldn't save. Try again.";
+      return;
+    }
+    formEl.hidden = true;
+    formEl.innerHTML = "";
   }
 
   // ════════════════════════════════════════════════════════════

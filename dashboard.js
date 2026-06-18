@@ -103,6 +103,13 @@ window.renderDashboard = async function (container, sb) {
     }))
     .sort((a, b) => b.pct - a.pct)[0] ?? null;
 
+  // Read monthly budget limit from localStorage (set in Finance module).
+  const budgetRaw = localStorage.getItem("dmico-hub-monthly-budget");
+  const budgetLimit = budgetRaw ? parseFloat(budgetRaw) : null;
+  const overBudget  = budgetLimit != null && monthSpend > budgetLimit;
+  const nearBudget  = budgetLimit != null && !overBudget && monthSpend / budgetLimit >= 0.8;
+  const fmtRM = (n) => "RM " + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   // ── Build cards ────────────────────────────────────────────
   const cards = [
     {
@@ -178,11 +185,19 @@ window.renderDashboard = async function (container, sb) {
       id: "finance",
       icon: "💰",
       label: "Finance",
-      primary: `RM ${monthSpend.toFixed(2)} this month`,
-      secondary: topGoal
+      primary: budgetLimit
+        ? `${fmtRM(monthSpend)} of ${fmtRM(budgetLimit)}`
+        : `RM ${monthSpend.toFixed(2)} this month`,
+      secondary: overBudget
+        ? `Over limit by ${fmtRM(monthSpend - budgetLimit)}`
+        : nearBudget
+        ? `${fmtRM(budgetLimit - monthSpend)} left — running close`
+        : topGoal
         ? `${clip(topGoal.label, 24)}: ${topGoal.pct}% funded`
+        : budgetLimit
+        ? `${fmtRM(budgetLimit - monthSpend)} remaining`
         : "No goals set yet",
-      tone: topGoal?.pct >= 100 ? "green" : topGoal ? "default" : "dim",
+      tone: overBudget ? "orange" : nearBudget ? "yellow" : topGoal?.pct >= 100 ? "green" : topGoal ? "default" : "dim",
     },
   ];
 
