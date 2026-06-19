@@ -736,6 +736,111 @@ input, button { font-family: inherit; }
   50%       { opacity: 1; }
 }
 
+/* ── Dashboard photo album (framed pictures rail) ──────────── */
+
+/* Two-column home layout. Widen the stage only for the dashboard so the
+   rail fills the previously-empty space on the right (rather than shrinking
+   the signal cards). Other modules keep the 920px cap. */
+.stage:has(.dash-layout) { max-width: 1200px; }
+
+.dash-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 28px;
+  align-items: start;
+}
+.dash-main { min-width: 0; }
+
+.dash-photos {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.photo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.photo-title {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0;
+}
+.photo-add {
+  font-size: 13px;
+  color: var(--accent-deep);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.photo-add:hover { background: var(--accent-wash); border-color: var(--accent); }
+
+.photo-list { display: flex; flex-direction: column; gap: 14px; }
+
+.photo-empty {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: center;
+}
+
+/* Each picture sits in a warm matted frame. */
+.photo-frame {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+  box-shadow: var(--shadow);
+}
+.photo-img {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+}
+.photo-caption {
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+  margin-top: 6px;
+}
+.photo-del {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(69, 48, 30, 0.55);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.photo-frame:hover .photo-del { opacity: 1; }
+
+@media (max-width: 900px) {
+  .dash-layout { grid-template-columns: 1fr; }
+  .dash-photos { position: static; }
+}
+
 /* ── Study plan display (.s-plan-*) ────────────────────────── */
 
 .s-plan {
