@@ -2736,6 +2736,30 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   gap: 16px;
 }
 
+/* Needs/wants category tagging editor */
+.fin-ov-section-head .fin-tag-cats-btn { margin-left: auto; }
+.fin-cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.fin-cat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.fin-cat-name {
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
 .fin-ov-rule-targets {
   display: flex;
   gap: 12px;

@@ -151,7 +151,7 @@
       SB.from("finance_income").select("*")
         .or(`year.gt.${windowMonths[0].year},and(year.eq.${windowMonths[0].year},month.gte.${windowMonths[0].month})`)
         .order("year").order("month"),
-      SB.from("finance_expenses").select("amount, logged_at")
+      SB.from("finance_expenses").select("amount, logged_at, category")
         .gte("logged_at", windowStart).lt("logged_at", windowEnd),
       SB.from("finance_goals").select("*"),
       SB.from("finance_surplus").select("*")
@@ -300,7 +300,24 @@
 
     drawIncomePanel(el("fin-ov-income-section"), thisMonthIncome, allIncome, thisYear, thisMonth);
     drawSurplusPanel(el("fin-ov-surplus-section"), thisSurplus, allSurplus, thisYear, thisMonth);
-    draw503020(el("fin-ov-rule-section"), totalIncomeThisMonth, thisMonthExp, savings);
+    // Needs/wants/unsorted split of this month's spending, via the category map.
+    const buckets = (cachedSettings && cachedSettings.category_buckets) || {};
+    const thisMonthRows = allExpenses.filter((e) => {
+      const d = new Date(e.logged_at);
+      return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+    });
+    const split = { need: 0, want: 0, unsorted: 0 };
+    thisMonthRows.forEach((e) => {
+      const cat = (e.category || "").trim().toLowerCase();
+      const b = buckets[cat];
+      if (b === "need") split.need += Number(e.amount);
+      else if (b === "want") split.want += Number(e.amount);
+      else split.unsorted += Number(e.amount);
+    });
+    const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+
+    draw503020(el("fin-ov-rule-section"), totalIncomeThisMonth, split, savings, allCats, buckets);
     drawSavingsChart(el("fin-ov-chart-wrap"), monthlySavings);
     drawProjections(el("fin-ov-projections"), goals, avgMonthlySavings, totalSaved);
   }
@@ -471,56 +488,48 @@
   }
 
   // ── 50/30/20 panel ─────────────────────────────────────────
-  function draw503020(section, income, spent, savings) {
+  function draw503020(section, income, split, savings, allCats, buckets) {
     const noIncome    = income <= 0;
     const needsTarget = income * 0.50;
     const wantsTarget = income * 0.30;
     const saveTarget  = income * 0.20;
-    const spendBudget = income * 0.80;
 
-    const spendPct  = spendBudget > 0 ? Math.min(120, Math.round((spent  / spendBudget) * 100)) : 0;
-    const savePct   = saveTarget  > 0 ? Math.min(120, Math.round((savings / saveTarget)  * 100)) : 0;
-    const spendOver = spent    > spendBudget;
-    const saveNeg   = savings  < 0;
-    const saveMet   = !saveNeg && savePct >= 100;
+    // A spend bar: actual vs its bucket target (over target reads as a warning).
+    const spendBar = (label, actual, target) => {
+      const pct  = target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
+      const over = actual > target && target > 0;
+      return `
+        <div class="fin-ov-rule-bar-block">
+          <div class="fin-ov-rule-bar-head">
+            <span>${label} (${fmtRM(target)})</span>
+            <span class="${over ? "fin-ov-over-text" : ""}">${fmtRM(actual)}</span>
+          </div>
+          <div class="fin-ov-bar-track">
+            <div class="fin-ov-bar-fill ${over ? "fin-ov-bar-over" : "fin-ov-bar-spend"}" style="width:${pct}%"></div>
+          </div>
+          <div class="fin-ov-bar-meta">
+            ${over
+              ? `<span class="fin-ov-over-text">Over by ${fmtRM(actual - target)}</span>`
+              : `<span>${fmtRM(target - actual)} of room left</span>`}
+          </div>
+        </div>`;
+    };
+
+    const savePct = saveTarget > 0 ? Math.min(120, Math.round((savings / saveTarget) * 100)) : 0;
+    const saveNeg = savings < 0;
+    const saveMet = !saveNeg && savePct >= 100;
+
+    const unsorted = split.unsorted || 0;
 
     section.innerHTML = `
       <div class="fin-ov-section-head">
         <span class="fin-ov-section-label">50 / 30 / 20 Budget Rule</span>
-        ${noIncome ? `<span class="fin-ov-section-note">Log allowance above to see targets</span>` : ""}
+        <button class="r-mini fin-tag-cats-btn">Tag categories${allCats.length ? ` (${allCats.length})` : ""}</button>
       </div>
       ${noIncome ? `<p class="fin-ov-rule-empty">Targets will appear once you log this month's allowance.</p>` : `
       <div class="fin-ov-rule-grid">
-
-        <div class="fin-ov-rule-targets">
-          <div class="fin-ov-rule-target-item">
-            <span class="fin-ov-rule-bucket">Needs</span>
-            <span class="fin-ov-rule-bucket-pct">50%</span>
-            <span class="fin-ov-rule-bucket-amt">${fmtRM(needsTarget)}</span>
-          </div>
-          <div class="fin-ov-rule-target-item">
-            <span class="fin-ov-rule-bucket">Wants</span>
-            <span class="fin-ov-rule-bucket-pct">30%</span>
-            <span class="fin-ov-rule-bucket-amt">${fmtRM(wantsTarget)}</span>
-          </div>
-          <p class="fin-ov-rule-note">Tag expense categories as needs/wants for a full split — for now, total spending is shown against the 80% limit.</p>
-        </div>
-
-        <div class="fin-ov-rule-bar-block">
-          <div class="fin-ov-rule-bar-head">
-            <span>Total spending vs 80% limit (${fmtRM(spendBudget)})</span>
-            <span class="${spendOver ? "fin-ov-over-text" : ""}">${fmtRM(spent)}</span>
-          </div>
-          <div class="fin-ov-bar-track">
-            <div class="fin-ov-bar-fill ${spendOver ? "fin-ov-bar-over" : "fin-ov-bar-spend"}"
-                 style="width:${Math.min(100, spendPct)}%"></div>
-          </div>
-          <div class="fin-ov-bar-meta">
-            ${spendOver
-              ? `<span class="fin-ov-over-text">Over by ${fmtRM(spent - spendBudget)}</span>`
-              : `<span>${fmtRM(spendBudget - spent)} remaining</span>`}
-          </div>
-        </div>
+        ${spendBar("Needs — 50% target", split.need || 0, needsTarget)}
+        ${spendBar("Wants — 30% target", split.want || 0, wantsTarget)}
 
         <div class="fin-ov-rule-bar-block fin-ov-rule-save-block">
           <div class="fin-ov-rule-bar-head">
@@ -542,7 +551,54 @@
           </div>
         </div>
 
+        ${unsorted > 0
+          ? `<p class="fin-ov-rule-note">${fmtRM(unsorted)} this month is in untagged categories. Hit "Tag categories" to split it into needs and wants.</p>`
+          : ""}
       </div>`}`;
+
+    const tagBtn = section.querySelector(".fin-tag-cats-btn");
+    if (tagBtn) tagBtn.addEventListener("click", () => openCategoryEditor(section, allCats, buckets));
+  }
+
+  function openCategoryEditor(section, allCats, buckets) {
+    if (!allCats.length) {
+      section.innerHTML = `
+        <div class="fin-ov-section-head"><span class="fin-ov-section-label">Tag categories</span></div>
+        <p class="fin-ov-rule-empty">No expense categories yet. Log a few expenses first, then come back to tag each one as a need or a want.</p>
+        <div class="r-actions"><button class="r-mini fin-cats-back">Back</button></div>`;
+      section.querySelector(".fin-cats-back").addEventListener("click", renderOverview);
+      return;
+    }
+    const rows = allCats.map((cat) => {
+      const cur = buckets[cat.toLowerCase()] || "unsorted";
+      return `
+        <div class="fin-cat-row">
+          <span class="fin-cat-name">${esc(cat)}</span>
+          <select class="fin-cat-select r-mini-select" data-cat="${esc(cat.toLowerCase())}">
+            <option value="unsorted" ${cur === "unsorted" ? "selected" : ""}>Unsorted</option>
+            <option value="need" ${cur === "need" ? "selected" : ""}>Need</option>
+            <option value="want" ${cur === "want" ? "selected" : ""}>Want</option>
+          </select>
+        </div>`;
+    }).join("");
+    section.innerHTML = `
+      <div class="fin-ov-section-head"><span class="fin-ov-section-label">Tag categories as needs / wants</span></div>
+      <div class="fin-cat-list">${rows}</div>
+      <div class="r-actions">
+        <button class="btn-primary r-btn fin-cats-save">Save</button>
+        <button class="r-mini fin-cats-back">Cancel</button>
+        <span class="fin-cats-status r-status"></span>
+      </div>`;
+    section.querySelector(".fin-cats-back").addEventListener("click", renderOverview);
+    section.querySelector(".fin-cats-save").addEventListener("click", async () => {
+      const map = {};
+      section.querySelectorAll(".fin-cat-select").forEach((sel) => {
+        if (sel.value === "need" || sel.value === "want") map[sel.dataset.cat] = sel.value;
+      });
+      section.querySelector(".fin-cats-status").textContent = "Saving…";
+      await saveSettings({ category_buckets: map });
+      renderOverview();
+    });
   }
 
   // ── Savings chart (SVG, 6 months, zero-centred) ────────────
@@ -1255,10 +1311,12 @@
       </div>
       ${updatedStr ? `<div class="fin-goal-updated">Last updated ${updatedStr}</div>` : ""}
       <div class="r-actions">
-        ${!g.done ? `<button class="r-mini fin-update-btn">Update progress</button>` : ""}
+        ${!g.done ? `<button class="r-mini fin-add-btn">Add saved</button>` : ""}
+        ${!g.done ? `<button class="r-mini fin-update-btn">Set total</button>` : ""}
         <button class="r-mini r-del fin-del-goal">Remove</button>
       </div>`;
     if (!g.done) {
+      card.querySelector(".fin-add-btn").addEventListener("click", () => addToGoal(g, card));
       card.querySelector(".fin-update-btn").addEventListener("click", () => updateGoal(g, card));
     }
     card.querySelector(".fin-del-goal").addEventListener("click", async () => {
@@ -1270,9 +1328,25 @@
     container.appendChild(card);
   }
 
+  // Explicit contribution: add an amount to the goal's saved total (predictable,
+  // matches the Discord bot's "saved RM X towards ..." flow).
+  async function addToGoal(goal, card) {
+    const raw = window.prompt(
+      `"${goal.label}" — how much did you just save toward it (RM)?\nCurrently at ${fmtRM(goal.current)} of ${fmtRM(goal.target)}.`
+    );
+    if (raw === null) return;
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0) { alert("Enter a positive amount."); return; }
+    const newTotal = Number(goal.current || 0) + n;
+    const { error } = await SB.from("finance_goals")
+      .update({ current: newTotal, updated_at: new Date().toISOString() }).eq("id", goal.id);
+    if (!error) drawGoals();
+  }
+
+  // Manual override: set the absolute saved total directly.
   async function updateGoal(goal, card) {
     const raw = window.prompt(
-      `"${goal.label}" — enter new total saved (RM):\nCurrently at ${fmtRM(goal.current)} of ${fmtRM(goal.target)}.`
+      `"${goal.label}" — set the total saved (RM):\nCurrently at ${fmtRM(goal.current)} of ${fmtRM(goal.target)}.`
     );
     if (raw === null) return;
     const n = parseFloat(raw);
