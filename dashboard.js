@@ -40,7 +40,7 @@ window.renderDashboard = async function (container, sb) {
         .order("exam_date", { ascending: true })
         .limit(1),
       sb.from("hygiene_items").select("name, last_done, interval_days"),
-      sb.from("hygiene_products").select("name, quantity, min_quantity"),
+      sb.from("hygiene_products").select("name, status"),
       sb.from("gamedev_projects")
         .select("id", { count: "exact" })
         .eq("status", "active"),
@@ -86,9 +86,10 @@ window.renderDashboard = async function (container, sb) {
     .filter((c) => c.daysOver > 0)
     .sort((a, b) => b.daysOver - a.daysOver);
   const worstChore = overdueChores[0] ?? null;
-  const lowSupplies = (supplies.data ?? []).filter(
-    (s) => s.min_quantity != null && Number(s.quantity) <= Number(s.min_quantity)
-  ).length;
+  const lowSupplies = (supplies.data ?? []).filter((s) => {
+    const st = String(s.status || "").toLowerCase();
+    return st === "low" || st === "empty" || st === "out";
+  }).length;
 
   // ── Game Dev ───────────────────────────────────────────────
   const activeCount = projects.count ?? projects.data?.length ?? 0;

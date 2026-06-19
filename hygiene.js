@@ -167,19 +167,30 @@
   //  SUPPLIES TAB
   // ════════════════════════════════════════════════════════════
 
+  // Status model: simple manual states, no quantities.
+  const SUPPLY_STATES = [
+    { key: "new",   label: "New" },
+    { key: "low",   label: "Going Low" },
+    { key: "empty", label: "Empty" },
+  ];
+  // Normalise any legacy value (ok/out/null) onto the new three-state model.
+  function normStatus(raw) {
+    const s = String(raw || "").toLowerCase();
+    if (s === "low") return "low";
+    if (s === "empty" || s === "out") return "empty";
+    return "new"; // covers "new", "ok", null, anything unexpected
+  }
+  function statusLabel(key) {
+    const found = SUPPLY_STATES.find((s) => s.key === key);
+    return found ? found.label : "New";
+  }
+
   async function renderSupplies() {
     const panel = el("h-panel");
     panel.innerHTML = `
       <div class="r-form h-addform">
         <div class="r-field"><label>Product name</label><input id="hp-name" type="text" placeholder="e.g. Shampoo" /></div>
-        <div class="r-row2">
-          <div class="r-field"><label>Category</label><input id="hp-cat" type="text" placeholder="e.g. Hair" /></div>
-          <div class="r-field"><label>Unit</label><input id="hp-unit" type="text" placeholder="e.g. bottles" /></div>
-        </div>
-        <div class="r-row2">
-          <div class="r-field"><label>Starting quantity</label><input id="hp-qty" type="number" min="0" step="0.5" placeholder="2" /></div>
-          <div class="r-field"><label>Low threshold</label><input id="hp-low" type="number" min="0" step="0.5" placeholder="1" /></div>
-        </div>
+        <div class="r-field"><label>Category</label><input id="hp-cat" type="text" placeholder="e.g. Hair" /></div>
         <div class="r-field"><label>Notes</label><input id="hp-notes" type="text" placeholder="optional" /></div>
         <button id="hp-save" class="btn-primary r-btn">Add product</button>
         <p id="hp-status" class="r-status"></p>
@@ -193,23 +204,17 @@
     const status = el("hp-status");
     const name = el("hp-name").value.trim();
     if (!name) { status.textContent = "Give the product a name first."; return; }
-    const qty = parseFloat(el("hp-qty").value) || 0;
-    const low = parseFloat(el("hp-low").value) || null;
-    const computedStatus = qty <= 0 ? "out" : (low !== null && qty <= low ? "low" : "ok");
     const row = {
       name,
-      category:      el("hp-cat").value.trim() || null,
-      unit:          el("hp-unit").value.trim() || null,
-      quantity:      qty,
-      low_threshold: low,
-      status:        computedStatus,
-      notes:         el("hp-notes").value.trim() || null,
-      added_via:     "web",
+      category:  el("hp-cat").value.trim() || null,
+      status:    "new", // freshly stocked; flip it down with the buttons later
+      notes:     el("hp-notes").value.trim() || null,
+      added_via: "web",
     };
     status.textContent = "Adding…";
     const { error } = await SB.from("hygiene_products").insert(row);
     if (error) { console.error(error); status.textContent = "Couldn't add it. Try again."; return; }
-    ["hp-name", "hp-cat", "hp-unit", "hp-qty", "hp-low", "hp-notes"].forEach((id) => (el(id).value = ""));
+    ["hp-name", "hp-cat", "hp-notes"].forEach((id) => (el(id).value = ""));
     status.textContent = "";
     await drawProducts();
   }
@@ -220,7 +225,7 @@
     if (error) { console.error(error); list.innerHTML = `<p class="r-status">Couldn't load products.</p>`; return; }
     const items = data || [];
     if (!items.length) {
-      list.innerHTML = `<div class="empty"><h2>No products yet</h2><p>Track your shampoo, soap, and supplies here. Use — to decrement; flip to "out" when empty. The bot pings you when something runs low.</p></div>`;
+      list.innerHTML = `<div class="empty"><h2>No products yet</h2><p>Track your shampoo, soap, and supplies here. Tap New, Going Low, or Empty to set where each one's at. The bot pings you when something is low or empty.</p></div>`;
       return;
     }
     list.innerHTML = "";
@@ -232,31 +237,33 @@
     card.className = "r-card";
     card.dataset.productId = item.id;
 
-    const st = item.status || "ok";
-    const qtyLabel = item.quantity != null
-      ? `${item.quantity}${item.unit ? " " + esc(item.unit) : ""}`
-      : "quantity not set";
+    const st = normStatus(item.status);
     const categoryText = item.category ? `<span class="r-chip h-cat">${esc(item.category)}</span>` : "";
+    const metaText = item.notes ? esc(item.notes) : "Tap a status below to update.";
+
+    const stateButtons = SUPPLY_STATES.map((s) =>
+      `<button class="r-mini h-state-btn ${s.key === st ? "active" : ""}" data-state="${s.key}">${s.label}</button>`
+    ).join("");
 
     card.innerHTML = `
       <div class="h-product-top">
         <div class="h-product-left">
           <h3 class="r-title">${esc(item.name)}</h3>
-          <div class="r-meta">${qtyLabel}${item.low_threshold != null ? `  &middot;  low at ${item.low_threshold}${item.unit ? " " + esc(item.unit) : ""}` : ""}${item.notes ? `  &middot;  ${esc(item.notes)}` : ""}</div>
+          <div class="r-meta">${metaText}</div>
         </div>
         <div class="h-product-right">
           ${categoryText}
-          <span class="h-status h-status-${esc(st)}">${esc(st)}</span>
+          <span class="h-status h-status-${st}">${statusLabel(st)}</span>
         </div>
       </div>
       <div class="r-actions">
-        <button class="r-mini h-use-btn">Use one</button>
-        <button class="r-mini h-restock-btn">Restock</button>
+        ${stateButtons}
         <button class="r-mini r-del">Remove</button>
       </div>`;
 
-    card.querySelector(".h-use-btn").addEventListener("click", () => useProduct(item, card));
-    card.querySelector(".h-restock-btn").addEventListener("click", () => restockProduct(item, card));
+    card.querySelectorAll(".h-state-btn").forEach((btn) =>
+      btn.addEventListener("click", () => setProductStatus(item, card, btn.dataset.state))
+    );
     card.querySelector(".r-del").addEventListener("click", async () => {
       if (!window.confirm(`Remove "${item.name}"?`)) return;
       const { error } = await SB.from("hygiene_products").delete().eq("id", item.id);
@@ -267,45 +274,25 @@
     container.appendChild(card);
   }
 
-  async function useProduct(item, card) {
-    const newQty = Math.max(0, (item.quantity || 0) - 1);
-    const newStatus = newQty <= 0 ? "out"
-      : (item.low_threshold != null && newQty <= item.low_threshold ? "low" : "ok");
+  async function setProductStatus(item, card, newStatus) {
+    const prev = normStatus(item.status);
+    const next = normStatus(newStatus);
+    if (next === prev) return; // no-op, already there
     const { error } = await SB.from("hygiene_products")
-      .update({ quantity: newQty, status: newStatus })
+      .update({ status: next })
       .eq("id", item.id);
     if (error) { console.error(error); return; }
-    // Update local object and repaint card in-place.
-    item.quantity = newQty; item.status = newStatus;
-    refreshProductCard(item, card);
-  }
-
-  async function restockProduct(item, card) {
-    const raw = window.prompt(`Restock "${item.name}" — enter new quantity${item.unit ? " (" + item.unit + ")" : ""}:`);
-    if (raw === null) return; // cancelled
-    const newQty = parseFloat(raw);
-    if (isNaN(newQty) || newQty < 0) { alert("Enter a valid number."); return; }
-    const newStatus = newQty <= 0 ? "out"
-      : (item.low_threshold != null && newQty <= item.low_threshold ? "low" : "ok");
-    const { error } = await SB.from("hygiene_products")
-      .update({ quantity: newQty, status: newStatus })
-      .eq("id", item.id);
-    if (error) { console.error(error); return; }
-    item.quantity = newQty; item.status = newStatus;
+    item.status = next;
     refreshProductCard(item, card);
   }
 
   function refreshProductCard(item, card) {
-    const st = item.status || "ok";
-    const qtyLabel = item.quantity != null
-      ? `${item.quantity}${item.unit ? " " + esc(item.unit) : ""}`
-      : "quantity not set";
-    const metaEl = card.querySelector(".r-meta");
-    if (metaEl) {
-      metaEl.textContent = `${qtyLabel}${item.low_threshold != null ? `  ·  low at ${item.low_threshold}${item.unit ? " " + item.unit : ""}` : ""}${item.notes ? `  ·  ${item.notes}` : ""}`;
-    }
+    const st = normStatus(item.status);
     const stEl = card.querySelector(".h-status");
-    if (stEl) { stEl.textContent = st; stEl.className = `h-status h-status-${st}`; }
+    if (stEl) { stEl.textContent = statusLabel(st); stEl.className = `h-status h-status-${st}`; }
+    card.querySelectorAll(".h-state-btn").forEach((btn) =>
+      btn.classList.toggle("active", btn.dataset.state === st)
+    );
   }
 
   window.renderHygiene = render;

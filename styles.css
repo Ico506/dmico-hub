@@ -897,9 +897,23 @@ input, button { font-family: inherit; }
   border-radius: 20px;
 }
 
-.h-status-ok  { background: var(--accent-wash); color: var(--accent-deep); }
-.h-status-low { background: rgba(196, 102, 31, 0.14); color: var(--lantern); }
-.h-status-out { background: rgba(138, 63, 30, 0.16); color: var(--clay); }
+.h-status-ok    { background: var(--accent-wash); color: var(--accent-deep); }
+.h-status-new   { background: var(--accent-wash); color: var(--accent-deep); }
+.h-status-low   { background: rgba(196, 102, 31, 0.14); color: var(--lantern); }
+.h-status-out   { background: rgba(138, 63, 30, 0.16); color: var(--clay); }
+.h-status-empty { background: rgba(138, 63, 30, 0.16); color: var(--clay); }
+
+/* Supplies status buttons — the active one reads as the current state. */
+.h-state-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+  font-weight: 600;
+}
+.h-state-btn.active:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
 
 /* ── Game Dev module (.gd-*) ───────────────────────────────── */
 
