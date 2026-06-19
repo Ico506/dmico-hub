@@ -9,7 +9,10 @@ CREATE TABLE IF NOT EXISTS public.dashboard_photos (
   caption      text,                     -- optional single line, hidden by default in UI
   sort_order   integer NOT NULL DEFAULT 0,
   created_at   timestamptz NOT NULL DEFAULT now(),
-  added_via    text DEFAULT 'web'
+  added_via    text DEFAULT 'web',
+  pos_x        numeric,                  -- pinned position, % of board width (null = default placement)
+  pos_y        numeric,                  -- pinned position, % of board height
+  z_index      integer DEFAULT 0         -- stacking order; bumped to top on drag
 );
 
 ALTER TABLE public.dashboard_photos ENABLE ROW LEVEL SECURITY;
