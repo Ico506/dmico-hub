@@ -2032,6 +2032,52 @@ input, button { font-family: inherit; }
   padding: 14px 16px;
 }
 
+/* Linked research papers (citation section) on a chapter card */
+.th-papers {
+  margin: 12px 0 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.th-papers-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.th-papers-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.th-thin-flag {
+  background: rgba(196, 102, 31, 0.14);
+  color: var(--lantern);
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.th-papers-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.th-papers-list li {
+  font-size: 0.8rem;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.th-papers-more { color: var(--ink-soft); font-style: italic; list-style: none; margin-left: -18px; }
+.th-papers-empty {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+
 .th-chapter-head {
   display: flex;
   align-items: center;

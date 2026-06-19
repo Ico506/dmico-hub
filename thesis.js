@@ -131,6 +131,17 @@
     if (error) { console.error(error); list.innerHTML = `<p class="r-status">Couldn't load chapters.</p>`; return; }
     const chapters = data || [];
 
+    // Linked research papers per chapter (for the citation section + thin flag).
+    const { data: paperRows } = await SB
+      .from("research_papers")
+      .select("id, title, chapter_id");
+    const papersByChapter = {};
+    (paperRows || []).forEach((p) => {
+      if (!p.chapter_id) return;
+      if (!papersByChapter[p.chapter_id]) papersByChapter[p.chapter_id] = [];
+      papersByChapter[p.chapter_id].push(p);
+    });
+
     // ── Overview strip ─────────────────────────────────────
     if (chapters.length) {
       const totalTarget  = chapters.reduce((s, c) => s + (c.target_words || 0), 0);
@@ -153,10 +164,13 @@
       return;
     }
     list.innerHTML = "";
-    chapters.forEach((c) => buildChapterCard(c, list));
+    chapters.forEach((c) => buildChapterCard(c, list, papersByChapter[c.id] || []));
   }
 
-  function buildChapterCard(c, container) {
+  const THIN_CITATION_THRESHOLD = 3; // fewer than this many linked papers = flagged
+
+  function buildChapterCard(c, container, linkedPapers) {
+    linkedPapers = linkedPapers || [];
     const pct = c.target_words > 0
       ? Math.min(100, Math.round((c.current_words / c.target_words) * 100))
       : null;
@@ -164,6 +178,19 @@
     const statusLabel = STATUS_LABELS[c.status] || c.status;
     const due         = dueLabel(c.due_date);
     const dueUrgent   = due && (due.includes("overdue") || due.includes("today") || due.includes("tomorrow"));
+
+    const linkedCount = linkedPapers.length;
+    const thin        = linkedCount < THIN_CITATION_THRESHOLD && c.status !== "done";
+    const papersHTML = `
+      <div class="th-papers">
+        <div class="th-papers-head">
+          <span class="th-papers-label">Sources (${linkedCount})</span>
+          ${thin ? `<span class="r-chip th-thin-flag">thin citations</span>` : ""}
+        </div>
+        ${linkedCount
+          ? `<ul class="th-papers-list">${linkedPapers.slice(0, 6).map((p) => `<li>${esc(p.title)}</li>`).join("")}${linkedCount > 6 ? `<li class="th-papers-more">+${linkedCount - 6} more</li>` : ""}</ul>`
+          : `<p class="th-papers-empty">No papers linked yet. Assign them from the Research module.</p>`}
+      </div>`;
 
     const card = document.createElement("div");
     card.className = `r-card th-chapter-card${c.status === "done" ? " th-chapter-done" : ""}`;
@@ -186,6 +213,7 @@
           <span>${pct}% of ${(c.target_words || 0).toLocaleString()}</span>
         </div>` : ""}
       ${due ? `<div class="th-due${dueUrgent ? " th-due-urgent" : ""}">${esc(due)}</div>` : ""}
+      ${papersHTML}
       <div class="r-actions">
         <select class="th-status-select r-mini-select" data-id="${esc(c.id)}">
           <option value="drafting"  ${c.status === "drafting"  ? "selected" : ""}>Drafting</option>

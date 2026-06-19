@@ -191,6 +191,14 @@
     panel.innerHTML = `<p class="r-status">Loading your library…</p>`;
     await loadLibrary();
 
+    // Thesis chapters for the per-paper "assign to chapter" control.
+    const { data: chapterRows } = await SB
+      .from("thesis_chapters")
+      .select("id, title")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    const chapters = chapterRows || [];
+
     if (!library.length) {
       panel.innerHTML = `<div class="empty">
         <h2>Your library is empty</h2>
@@ -216,7 +224,7 @@
     const libEl = document.getElementById("r-lib");
     const draw = (items) => {
       libEl.innerHTML = "";
-      items.forEach((p) => libEl.appendChild(libraryCard(p)));
+      items.forEach((p) => libEl.appendChild(libraryCard(p, chapters)));
     };
     draw(shown);
 
@@ -235,9 +243,13 @@
     document.getElementById("r-export").addEventListener("click", () => exportBib(shown));
   }
 
-  function libraryCard(p) {
+  function libraryCard(p, chapters) {
+    chapters = chapters || [];
     const card = document.createElement("div");
     card.className = "r-card";
+    const chapterOpts = chapters
+      .map((c) => `<option value="${esc(c.id)}" ${c.id === p.chapter_id ? "selected" : ""}>${esc(c.title)}</option>`)
+      .join("");
     card.innerHTML = `
       <h3 class="r-title">${esc(p.title)}</h3>
       <div class="r-meta">${esc(meta(p))}</div>
@@ -246,14 +258,27 @@
         <button class="r-mini r-related">Find related</button>
         <button class="r-mini r-bib">Copy BibTeX</button>
         <button class="r-mini r-edit">Tags</button>
+        <select class="r-mini-select r-chapter-select" title="Link to a thesis chapter">
+          <option value="">— no chapter —</option>
+          ${chapterOpts}
+        </select>
         ${p.url ? `<a class="r-mini" href="${esc(p.url)}" target="_blank" rel="noopener">Open</a>` : ""}
         <button class="r-mini r-del">Remove</button>
       </div>`;
     card.querySelector(".r-related").addEventListener("click", () => findRelated(p));
     card.querySelector(".r-bib").addEventListener("click", (e) => copy(p.bibtex || bibtexFrom(p), e.target));
     card.querySelector(".r-edit").addEventListener("click", () => editTags(p));
+    card.querySelector(".r-chapter-select").addEventListener("change", (e) => assignChapter(p, e.target.value || null));
     card.querySelector(".r-del").addEventListener("click", () => removePaper(p));
     return card;
+  }
+
+  async function assignChapter(p, chapterId) {
+    const { error } = await SB.from("research_papers")
+      .update({ chapter_id: chapterId, updated_at: new Date().toISOString() })
+      .eq("id", p.id);
+    if (error) { console.error(error); alert("Couldn't link the chapter. Try again."); return; }
+    p.chapter_id = chapterId; // keep local state in sync (no full re-render needed)
   }
 
   async function editTags(p) {
