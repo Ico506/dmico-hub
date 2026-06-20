@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS public.dashboard_photos (
   added_via    text DEFAULT 'web',
   pos_x        numeric,                  -- pinned position, % of board width (null = default placement)
   pos_y        numeric,                  -- pinned position, % of board height
-  z_index      integer DEFAULT 0         -- stacking order; bumped to top on drag
+  z_index      integer DEFAULT 0,        -- stacking order; bumped to top on drag
+  width        numeric                   -- pinned frame width in px (null = default)
 );
 
 ALTER TABLE public.dashboard_photos ENABLE ROW LEVEL SECURITY;

@@ -109,7 +109,8 @@
       <button class="photo-del" title="Remove">&times;</button>
       <img class="photo-img" src="${esc(url || "")}" alt="${esc(row.caption || "photo")}"
            draggable="false" onerror="this.style.display='none'" />
-      ${row.caption ? `<div class="photo-caption">${esc(row.caption)}</div>` : ""}`;
+      ${row.caption ? `<div class="photo-caption">${esc(row.caption)}</div>` : ""}
+      <span class="photo-resize" title="Drag to resize"></span>`;
 
     frame.querySelector(".photo-del").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -118,7 +119,7 @@
 
     if (!pinnable) return frame; // stacked fallback
 
-    frame.style.width = FRAME_W + "px";
+    frame.style.width = (row.width ? Number(row.width) : FRAME_W) + "px";
     frame.style.zIndex = String(Number(row.z_index) || 0);
 
     // Pinned position, or a tidy cascade in open space if not yet placed.
@@ -134,12 +135,13 @@
     frame.style.top = yPct + "%";
 
     attachDrag(frame, row);
+    attachResize(frame, row);
     return frame;
   }
 
   function attachDrag(frame, row) {
     frame.addEventListener("pointerdown", (e) => {
-      if (e.target.closest(".photo-del")) return;
+      if (e.target.closest(".photo-del") || e.target.closest(".photo-resize")) return;
       e.preventDefault();
       const boardRect = BOARD.getBoundingClientRect();
       const fRect = frame.getBoundingClientRect();
@@ -184,6 +186,41 @@
     frame.addEventListener("pointercancel", finish);
   }
 
+  function attachResize(frame, row) {
+    const handle = frame.querySelector(".photo-resize");
+    if (!handle) return;
+    let rs = null;
+
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // don't start a drag
+      rs = { startX: e.clientX, startW: frame.offsetWidth };
+      bringToFront(frame, row);
+      frame.classList.add("photo-resizing");
+      try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!rs) return;
+      const boardW = BOARD.getBoundingClientRect().width;
+      let w = rs.startW + (e.clientX - rs.startX);
+      w = Math.max(90, Math.min(w, Math.min(600, boardW - 10)));
+      frame.style.width = w + "px";
+    });
+
+    const done = async (e) => {
+      if (!rs) return;
+      rs = null;
+      frame.classList.remove("photo-resizing");
+      try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+      const w = Math.round(frame.offsetWidth);
+      row.width = w;
+      await persistSize(row.id, w, row.z_index);
+    };
+    handle.addEventListener("pointerup", done);
+    handle.addEventListener("pointercancel", done);
+  }
+
   function bringToFront(frame, row) {
     topZ += 1;
     row.z_index = topZ;
@@ -195,6 +232,13 @@
       .update({ pos_x: xPct, pos_y: yPct, z_index: z })
       .eq("id", id);
     if (error) console.error("persist position failed", error);
+  }
+
+  async function persistSize(id, width, z) {
+    const { error } = await SB.from("dashboard_photos")
+      .update({ width: width, z_index: z })
+      .eq("id", id);
+    if (error) console.error("persist size failed", error);
   }
 
   async function uploadPhoto(file) {

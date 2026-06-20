@@ -821,6 +821,24 @@ input, button { font-family: inherit; }
 }
 .photo-frame:hover .photo-del { opacity: 1; }
 
+/* Corner resize grabber (bottom-right). */
+.photo-resize {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 0 0 8px 0;
+  background:
+    linear-gradient(135deg, transparent 50%, var(--accent) 50%);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  touch-action: none;
+}
+.photo-frame:hover .photo-resize,
+.photo-frame.photo-resizing .photo-resize { opacity: 1; }
+
 /* Narrow-screen fallback: stack the photos, no pinning/drag. */
 .photo-stack {
   margin-top: 20px;
@@ -834,6 +852,7 @@ input, button { font-family: inherit; }
   cursor: default;
 }
 .photo-stack .photo-del { opacity: 1; top: 4px; right: 4px; }
+.photo-stack .photo-resize { display: none; }
 
 /* ── Study plan display (.s-plan-*) ────────────────────────── */
 
