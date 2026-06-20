@@ -101,6 +101,7 @@
             <button class="r-tab current" data-tab="overview">Overview</button>
             <button class="r-tab" data-tab="expenses">Expenses</button>
             <button class="r-tab" data-tab="goals">Goals</button>
+            <button class="r-tab" data-tab="investments">Investments</button>
           </div>
           <div id="fin-panel"></div>
         </div>
@@ -113,8 +114,10 @@
         root.querySelectorAll(".r-tab").forEach((x) =>
           x.classList.toggle("current", x === t)
         );
-        if (t.dataset.tab === "overview") renderOverview();
-        else if (t.dataset.tab === "expenses") renderExpenses();
+        const tab = t.dataset.tab;
+        if (tab === "overview") renderOverview();
+        else if (tab === "expenses") renderExpenses();
+        else if (tab === "investments") renderInvestments();
         else renderGoals();
       })
     );
@@ -317,7 +320,7 @@
     const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b));
 
-    draw503020(el("fin-ov-rule-section"), totalIncomeThisMonth, split, savings, allCats, buckets);
+    draw503020(el("fin-ov-rule-section"), totalIncomeThisMonth, split, savings, allCats, buckets, activeRule());
     drawSavingsChart(el("fin-ov-chart-wrap"), monthlySavings);
     drawProjections(el("fin-ov-projections"), goals, avgMonthlySavings, totalSaved);
   }
@@ -487,30 +490,48 @@
     });
   }
 
-  // ── 50/30/20 panel ─────────────────────────────────────────
-  function draw503020(section, income, split, savings, allCats, buckets) {
+  // ── Budget rule panel ──────────────────────────────────────
+  // v1: buckets stay needs/wants/savings; presets only vary the percentages.
+  // A preset with wants:0 (e.g. 80/20) hides the Wants bar.
+  const BUDGET_PRESETS = [
+    { id: "50/30/20", needs: 50, wants: 30, savings: 20 },
+    { id: "70/20/10", needs: 70, wants: 20, savings: 10 },
+    { id: "80/20",    needs: 80, wants: 0,  savings: 20 },
+    { id: "60/20/20", needs: 60, wants: 20, savings: 20 },
+    { id: "40/40/20", needs: 40, wants: 40, savings: 20 },
+  ];
+  const DEFAULT_RULE = { id: "50/30/20", needs: 50, wants: 30, savings: 20 };
+
+  function activeRule() {
+    const r = cachedSettings && cachedSettings.budget_rule;
+    if (r && typeof r.needs === "number") return r;
+    return DEFAULT_RULE;
+  }
+
+  function draw503020(section, income, split, savings, allCats, buckets, rule) {
+    rule = rule || DEFAULT_RULE;
     const noIncome    = income <= 0;
-    const needsTarget = income * 0.50;
-    const wantsTarget = income * 0.30;
-    const saveTarget  = income * 0.20;
+    const needsTarget = income * (rule.needs   || 0) / 100;
+    const wantsTarget = income * (rule.wants   || 0) / 100;
+    const saveTarget  = income * (rule.savings || 0) / 100;
 
     // A spend bar: actual vs its bucket target (over target reads as a warning).
+    // Meta line shows spent / limit / remaining (number only).
     const spendBar = (label, actual, target) => {
       const pct  = target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
       const over = actual > target && target > 0;
       return `
         <div class="fin-ov-rule-bar-block">
           <div class="fin-ov-rule-bar-head">
-            <span>${label} (${fmtRM(target)})</span>
-            <span class="${over ? "fin-ov-over-text" : ""}">${fmtRM(actual)}</span>
+            <span>${label}</span>
           </div>
           <div class="fin-ov-bar-track">
             <div class="fin-ov-bar-fill ${over ? "fin-ov-bar-over" : "fin-ov-bar-spend"}" style="width:${pct}%"></div>
           </div>
           <div class="fin-ov-bar-meta">
             ${over
-              ? `<span class="fin-ov-over-text">Over by ${fmtRM(actual - target)}</span>`
-              : `<span>${fmtRM(target - actual)} of room left</span>`}
+              ? `<span>${fmtRM(actual)} of ${fmtRM(target)} <span class="fin-ov-over-text">· over by ${fmtRM(actual - target)}</span></span>`
+              : `<span>${fmtRM(actual)} of ${fmtRM(target)} · ${fmtRM(target - actual)} left</span>`}
           </div>
         </div>`;
     };
@@ -521,22 +542,26 @@
 
     const unsorted = split.unsorted || 0;
 
+    const presetIds = BUDGET_PRESETS.map((p) => p.id);
+    const isCustom = !presetIds.includes(rule.id);
+    const ruleOptions =
+      BUDGET_PRESETS.map((p) => `<option value="${p.id}" ${p.id === rule.id ? "selected" : ""}>${p.id}</option>`).join("") +
+      `<option value="custom" ${isCustom ? "selected" : ""}>Custom${isCustom ? ` (${rule.needs}/${rule.wants}/${rule.savings})` : ""}</option>`;
+
     section.innerHTML = `
       <div class="fin-ov-section-head">
-        <span class="fin-ov-section-label">50 / 30 / 20 Budget Rule</span>
+        <span class="fin-ov-section-label">Budget rule</span>
+        <select class="r-mini-select fin-rule-select" title="Pick a budgeting rule">${ruleOptions}</select>
         <button class="r-mini fin-tag-cats-btn">Tag categories${allCats.length ? ` (${allCats.length})` : ""}</button>
       </div>
       ${noIncome ? `<p class="fin-ov-rule-empty">Targets will appear once you log this month's allowance.</p>` : `
       <div class="fin-ov-rule-grid">
-        ${spendBar("Needs — 50% target", split.need || 0, needsTarget)}
-        ${spendBar("Wants — 30% target", split.want || 0, wantsTarget)}
+        ${spendBar(`Needs · ${rule.needs}%`, split.need || 0, needsTarget)}
+        ${rule.wants > 0 ? spendBar(`Wants · ${rule.wants}%`, split.want || 0, wantsTarget) : ""}
 
         <div class="fin-ov-rule-bar-block fin-ov-rule-save-block">
           <div class="fin-ov-rule-bar-head">
-            <span>Save / Invest — 20% target (${fmtRM(saveTarget)})</span>
-            <span class="${saveNeg ? "fin-ov-over-text" : saveMet ? "fin-ov-saved-text" : ""}">
-              ${saveNeg ? `−${fmtRM(Math.abs(savings))} deficit` : fmtRM(savings)}
-            </span>
+            <span>Save / Invest · ${rule.savings}%</span>
           </div>
           <div class="fin-ov-bar-track">
             <div class="fin-ov-bar-fill ${saveNeg ? "fin-ov-bar-over" : saveMet ? "fin-ov-bar-saved" : "fin-ov-bar-save"}"
@@ -544,10 +569,10 @@
           </div>
           <div class="fin-ov-bar-meta">
             ${saveNeg
-              ? `<span class="fin-ov-over-text">Overspent this month</span>`
+              ? `<span class="fin-ov-over-text">−${fmtRM(Math.abs(savings))} deficit · overspent this month</span>`
               : saveMet
-              ? `<span class="fin-ov-saved-text">Target met!</span>`
-              : `<span>${fmtRM(saveTarget - savings)} short of target</span>`}
+              ? `<span class="fin-ov-saved-text">${fmtRM(savings)} of ${fmtRM(saveTarget)} · target met</span>`
+              : `<span>${fmtRM(savings)} of ${fmtRM(saveTarget)} · ${fmtRM(saveTarget - savings)} to go</span>`}
           </div>
         </div>
 
@@ -558,6 +583,50 @@
 
     const tagBtn = section.querySelector(".fin-tag-cats-btn");
     if (tagBtn) tagBtn.addEventListener("click", () => openCategoryEditor(section, allCats, buckets));
+
+    const ruleSel = section.querySelector(".fin-rule-select");
+    if (ruleSel) ruleSel.addEventListener("change", (e) => onRuleChange(section, e.target.value, rule));
+  }
+
+  async function onRuleChange(section, value, currentRule) {
+    if (value === "custom") {
+      openRuleEditor(section, currentRule);
+      return;
+    }
+    const preset = BUDGET_PRESETS.find((p) => p.id === value);
+    if (!preset) return;
+    await saveSettings({ budget_rule: { ...preset } });
+    renderOverview();
+  }
+
+  function openRuleEditor(section, currentRule) {
+    const r = currentRule || DEFAULT_RULE;
+    section.innerHTML = `
+      <div class="fin-ov-section-head"><span class="fin-ov-section-label">Custom budget rule</span></div>
+      <div class="fin-rule-custom">
+        <div class="r-row2">
+          <div class="r-field"><label>Needs %</label><input id="fr-needs" type="number" min="0" max="100" step="1" value="${r.needs}" /></div>
+          <div class="r-field"><label>Wants %</label><input id="fr-wants" type="number" min="0" max="100" step="1" value="${r.wants}" /></div>
+        </div>
+        <div class="r-field"><label>Savings %</label><input id="fr-savings" type="number" min="0" max="100" step="1" value="${r.savings}" /></div>
+        <p id="fr-hint" class="r-status"></p>
+      </div>
+      <div class="r-actions">
+        <button class="btn-primary r-btn fr-save">Save rule</button>
+        <button class="r-mini fr-cancel">Cancel</button>
+      </div>`;
+    section.querySelector(".fr-cancel").addEventListener("click", renderOverview);
+    section.querySelector(".fr-save").addEventListener("click", async () => {
+      const needs   = Math.max(0, parseFloat(el("fr-needs").value)   || 0);
+      const wants   = Math.max(0, parseFloat(el("fr-wants").value)   || 0);
+      const savings = Math.max(0, parseFloat(el("fr-savings").value) || 0);
+      const total = needs + wants + savings;
+      if (total !== 100) {
+        el("fr-hint").textContent = `Heads up: that adds to ${total}%, not 100%. Saving anyway.`;
+      }
+      await saveSettings({ budget_rule: { id: "custom", needs, wants, savings } });
+      renderOverview();
+    });
   }
 
   function openCategoryEditor(section, allCats, buckets) {
@@ -1354,6 +1423,178 @@
     const { error } = await SB.from("finance_goals")
       .update({ current: n, updated_at: new Date().toISOString() }).eq("id", goal.id);
     if (!error) drawGoals();
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  INVESTMENTS TAB
+  // ════════════════════════════════════════════════════════════
+
+  const escInv = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const INV_PALETTE = ["var(--accent)", "var(--lantern)", "#B08A2A", "var(--clay)", "var(--accent-deep)", "#6E8B7B", "#9C6B3F", "#7C6A4F"];
+
+  async function renderInvestments() {
+    const panel = el("fin-panel");
+    panel.innerHTML = `
+      <div class="r-form fin-addform">
+        <div class="r-field"><label>Holding name</label><input id="iv-name" type="text" placeholder="e.g. ASM, Bitcoin, Maybank shares" /></div>
+        <div class="r-row2">
+          <div class="r-field"><label>Type</label><input id="iv-type" type="text" placeholder="e.g. Stocks, Crypto, Gold, Funds" /></div>
+          <div class="r-field"><label>Amount invested (RM)</label><input id="iv-amount" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+        </div>
+        <div class="r-row2">
+          <div class="r-field"><label>Current value (RM) <span class="r-label-optional">(optional)</span></label><input id="iv-current" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+          <div class="r-field"><label>Notes <span class="r-label-optional">(optional)</span></label><input id="iv-notes" type="text" placeholder="optional" /></div>
+        </div>
+        <button id="iv-save" class="btn-primary r-btn">Add holding</button>
+        <p id="iv-status" class="r-status"></p>
+      </div>
+      <div id="fin-inv-body"></div>`;
+    el("iv-save").addEventListener("click", addInvestment);
+    await drawInvestments();
+  }
+
+  async function addInvestment() {
+    const msg = el("iv-status");
+    const name = el("iv-name").value.trim();
+    if (!name) { msg.textContent = "Name the holding."; return; }
+    const currentRaw = el("iv-current").value.trim();
+    const row = {
+      name,
+      type: el("iv-type").value.trim() || "Other",
+      amount_invested: parseFloat(el("iv-amount").value) || 0,
+      current_value: currentRaw === "" ? null : (parseFloat(currentRaw) || 0),
+      notes: el("iv-notes").value.trim() || null,
+      added_via: "web",
+    };
+    msg.textContent = "Adding…";
+    const { error } = await SB.from("investments").insert(row);
+    if (error) { console.error(error); msg.textContent = "Couldn't add it. Try again."; return; }
+    ["iv-name", "iv-type", "iv-amount", "iv-current", "iv-notes"].forEach((id) => (el(id).value = ""));
+    msg.textContent = "";
+    await drawInvestments();
+  }
+
+  async function drawInvestments() {
+    const body = el("fin-inv-body");
+    const { data, error } = await SB.from("investments").select("*").order("created_at", { ascending: true });
+    if (error) { console.error(error); body.innerHTML = `<p class="r-status">Couldn't load investments.</p>`; return; }
+    const holdings = data || [];
+    if (!holdings.length) {
+      body.innerHTML = `<div class="empty"><h2>No investments yet</h2><p>Add a holding above. The donut shows where your money sits by type, and current values give you a gain/loss readout. Crypto tracked by the bot stays separate for now.</p></div>`;
+      return;
+    }
+
+    const totalInvested = holdings.reduce((s, h) => s + Number(h.amount_invested || 0), 0);
+    const totalCurrent  = holdings.reduce((s, h) => s + Number(h.current_value != null ? h.current_value : (h.amount_invested || 0)), 0);
+    const hasAnyCurrent = holdings.some((h) => h.current_value != null);
+    const gain = totalCurrent - totalInvested;
+    const gainPct = totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
+
+    // Allocation by type (by amount invested).
+    const byType = {};
+    holdings.forEach((h) => {
+      const t = (h.type || "Other").trim() || "Other";
+      byType[t] = (byType[t] || 0) + Number(h.amount_invested || 0);
+    });
+    const slices = Object.entries(byType)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .map((s, i) => ({ ...s, color: INV_PALETTE[i % INV_PALETTE.length] }));
+
+    const legend = slices.map((s) => {
+      const pct = totalInvested > 0 ? Math.round((s.value / totalInvested) * 100) : 0;
+      return `<div class="fin-inv-leg-row">
+        <span class="fin-inv-swatch" style="background:${s.color}"></span>
+        <span class="fin-inv-leg-label">${escInv(s.label)}</span>
+        <span class="fin-inv-leg-val">${fmtRM(s.value)} · ${pct}%</span>
+      </div>`;
+    }).join("");
+
+    const cards = holdings.map((h) => {
+      const inv = Number(h.amount_invested || 0);
+      const cur = h.current_value != null ? Number(h.current_value) : null;
+      const g = cur != null ? cur - inv : null;
+      const gp = (cur != null && inv > 0) ? (g / inv) * 100 : null;
+      const gClass = g == null ? "" : (g > 0 ? "fin-inv-gain" : g < 0 ? "fin-inv-loss" : "");
+      return `<div class="r-card fin-inv-card" data-id="${escInv(h.id)}">
+        <div class="fin-inv-card-top">
+          <div>
+            <h3 class="r-title">${escInv(h.name)}</h3>
+            <div class="r-meta">${escInv(h.type || "Other")}${h.notes ? `  ·  ${escInv(h.notes)}` : ""}</div>
+          </div>
+          <span class="r-chip">${fmtRM(inv)}</span>
+        </div>
+        <div class="fin-inv-card-figs">
+          <span>Invested ${fmtRM(inv)}</span>
+          ${cur != null
+            ? `<span>Now ${fmtRM(cur)}</span><span class="${gClass}">${g >= 0 ? "+" : "−"}${fmtRM(Math.abs(g))}${gp != null ? ` (${gp >= 0 ? "+" : ""}${gp.toFixed(1)}%)` : ""}</span>`
+            : `<span class="r-status">no current value set</span>`}
+        </div>
+        <div class="r-actions">
+          <button class="r-mini iv-update">Update value</button>
+          <button class="r-mini r-del iv-del">Remove</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    const gainClass = gain > 0 ? "fin-inv-gain" : gain < 0 ? "fin-inv-loss" : "";
+    body.innerHTML = `
+      <div class="fin-inv-summary">
+        <div class="fin-inv-sum-item"><span class="fin-inv-sum-label">Invested</span><span class="fin-inv-sum-val">${fmtRM(totalInvested)}</span></div>
+        <div class="fin-inv-sum-item"><span class="fin-inv-sum-label">Current</span><span class="fin-inv-sum-val">${fmtRM(totalCurrent)}</span></div>
+        <div class="fin-inv-sum-item"><span class="fin-inv-sum-label">Gain / Loss</span><span class="fin-inv-sum-val ${gainClass}">${hasAnyCurrent ? `${gain >= 0 ? "+" : "−"}${fmtRM(Math.abs(gain))} (${gainPct >= 0 ? "+" : ""}${gainPct.toFixed(1)}%)` : "—"}</span></div>
+      </div>
+      <div class="fin-inv-alloc">
+        ${donutSVG(slices, totalInvested)}
+        <div class="fin-inv-legend">${legend}</div>
+      </div>
+      <div class="fin-inv-list">${cards}</div>`;
+
+    body.querySelectorAll(".iv-del").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const card = btn.closest(".fin-inv-card");
+        const id = card && card.dataset.id;
+        if (!id || !window.confirm("Remove this holding?")) return;
+        const { error } = await SB.from("investments").delete().eq("id", id);
+        if (error) { console.error(error); return; }
+        drawInvestments();
+      });
+    });
+    body.querySelectorAll(".iv-update").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const card = btn.closest(".fin-inv-card");
+        const id = card && card.dataset.id;
+        if (!id) return;
+        const raw = window.prompt("Current value of this holding (RM):");
+        if (raw === null) return;
+        const n = parseFloat(raw);
+        if (isNaN(n) || n < 0) { alert("Enter a valid number."); return; }
+        const { error } = await SB.from("investments").update({ current_value: n }).eq("id", id);
+        if (error) { console.error(error); return; }
+        drawInvestments();
+      });
+    });
+  }
+
+  function donutSVG(slices, total) {
+    const size = 168, stroke = 28, r = (size - stroke) / 2, cx = size / 2, cy = size / 2;
+    const C = 2 * Math.PI * r;
+    const sum = total || slices.reduce((s, x) => s + x.value, 0) || 1;
+    let offset = 0;
+    const segs = slices.map((s) => {
+      const len = (s.value / sum) * C;
+      const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${stroke}" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})" />`;
+      offset += len;
+      return seg;
+    }).join("");
+    return `<svg class="fin-donut-svg" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${stroke}" opacity="0.35" />
+      ${segs}
+      <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="10" fill="var(--ink-soft)">Total</text>
+      <text x="${cx}" y="${cy + 13}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">${fmtRM(total)}</text>
+    </svg>`;
   }
 
   window.renderFinance = render;

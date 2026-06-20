@@ -2773,6 +2773,62 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   text-transform: capitalize;
 }
 
+.fin-rule-custom { margin-bottom: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Investments tab */
+.fin-inv-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.fin-inv-sum-item {
+  flex: 1;
+  min-width: 120px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fin-inv-sum-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.fin-inv-sum-val { font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+.fin-inv-gain { color: var(--accent-deep); }
+.fin-inv-loss { color: var(--clay); }
+
+.fin-inv-alloc {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.fin-donut-svg { width: 168px; height: 168px; flex-shrink: 0; }
+.fin-inv-legend { display: flex; flex-direction: column; gap: 7px; min-width: 180px; }
+.fin-inv-leg-row { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; }
+.fin-inv-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.fin-inv-leg-label { color: var(--ink); text-transform: capitalize; }
+.fin-inv-leg-val { margin-left: auto; color: var(--ink-soft); }
+
+.fin-inv-list { display: flex; flex-direction: column; gap: 12px; }
+.fin-inv-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.fin-inv-card-figs {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 8px 0 4px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
 .fin-ov-rule-targets {
   display: flex;
   gap: 12px;
