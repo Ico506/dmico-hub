@@ -736,45 +736,33 @@ input, button { font-family: inherit; }
   50%       { opacity: 1; }
 }
 
-/* ── Dashboard photo album (framed pictures rail) ──────────── */
+/* ── Dashboard photo board (draggable pinned pictures) ─────── */
 
-/* Two-column home layout. Widen the stage only for the dashboard so the
-   rail fills the previously-empty space on the right (rather than shrinking
-   the signal cards). Other modules keep the 920px cap. */
-.stage:has(.dash-layout) { max-width: 1200px; }
+/* Widen the stage only for the dashboard so there's room to pin photos
+   in the space beside the signal cards. Other modules keep the 920px cap. */
+.stage:has(.dash-board) { max-width: 1200px; }
 
-.dash-layout {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 28px;
-  align-items: start;
-}
-.dash-main { min-width: 0; }
-
-.dash-photos {
-  position: sticky;
-  top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* The board is the positioning context. Cards flow at the top; pinned photos
+   are absolutely placed over it. min-height gives a canvas to pin into. */
+.dash-board {
+  position: relative;
+  min-height: 600px;
 }
 
-.photo-head {
+/* Add-photo control, pinned to the board's top-right. */
+.photo-add-wrap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 9999;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-.photo-title {
-  font-family: var(--display);
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--ink);
-  margin: 0;
+  gap: 8px;
 }
 .photo-add {
   font-size: 13px;
   color: var(--accent-deep);
-  background: transparent;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 6px 12px;
@@ -782,32 +770,29 @@ input, button { font-family: inherit; }
   transition: background 0.16s ease, border-color 0.16s ease;
 }
 .photo-add:hover { background: var(--accent-wash); border-color: var(--accent); }
+.photo-status { font-size: 0.78rem; color: var(--ink-soft); }
 
-.photo-list { display: flex; flex-direction: column; gap: 14px; }
-
-.photo-empty {
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-  background: var(--surface);
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  padding: 18px;
-  text-align: center;
-}
-
-/* Each picture sits in a warm matted frame. */
+/* A pinned, draggable, warm-matted frame. */
 .photo-frame {
-  position: relative;
+  position: absolute;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 8px;
   box-shadow: var(--shadow);
+  cursor: grab;
+  touch-action: none;       /* let pointer drag work on touch without scrolling */
+  user-select: none;
+}
+.photo-frame.photo-dragging {
+  cursor: grabbing;
+  box-shadow: 0 6px 22px rgba(69, 48, 30, 0.22);
 }
 .photo-img {
   display: block;
   width: 100%;
   border-radius: 8px;
+  pointer-events: none;     /* drags belong to the frame, not the image */
 }
 .photo-caption {
   font-size: 12px;
@@ -817,13 +802,13 @@ input, button { font-family: inherit; }
 }
 .photo-del {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: -8px;
+  right: -8px;
   width: 24px;
   height: 24px;
   border: none;
   border-radius: 50%;
-  background: rgba(69, 48, 30, 0.55);
+  background: rgba(69, 48, 30, 0.7);
   color: #fff;
   font-size: 16px;
   line-height: 1;
@@ -836,10 +821,19 @@ input, button { font-family: inherit; }
 }
 .photo-frame:hover .photo-del { opacity: 1; }
 
-@media (max-width: 900px) {
-  .dash-layout { grid-template-columns: 1fr; }
-  .dash-photos { position: static; }
+/* Narrow-screen fallback: stack the photos, no pinning/drag. */
+.photo-stack {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
+.photo-stack .photo-frame {
+  position: static;
+  width: 100% !important;
+  cursor: default;
+}
+.photo-stack .photo-del { opacity: 1; top: 4px; right: 4px; }
 
 /* ── Study plan display (.s-plan-*) ────────────────────────── */
 

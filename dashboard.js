@@ -16,24 +16,21 @@ window.renderDashboard = async function (container, sb) {
       <p class="dash-date">${dateStr}</p>
       <p class="dash-sub">Here's where everything stands.</p>
     </div>
-    <div class="dash-layout">
-      <div class="dash-main">
-        <div class="dash-grid" id="dash-grid">
-          ${Array.from({ length: 6 }).map(() => `
-            <div class="dash-card dash-card--loading">
-              <div class="dash-skel"></div>
-              <div class="dash-skel dash-skel--short"></div>
-              <div class="dash-skel dash-skel--short"></div>
-            </div>`).join("")}
-        </div>
+    <div class="dash-board" id="dash-board">
+      <div class="dash-grid" id="dash-grid">
+        ${Array.from({ length: 6 }).map(() => `
+          <div class="dash-card dash-card--loading">
+            <div class="dash-skel"></div>
+            <div class="dash-skel dash-skel--short"></div>
+            <div class="dash-skel dash-skel--short"></div>
+          </div>`).join("")}
       </div>
-      <aside class="dash-photos" id="dash-photos"></aside>
     </div>`;
 
-  // Framed pictures rail (independent fetch; never blocks the signal cards).
+  // Pinned, draggable photo board (independent fetch; never blocks the signal cards).
   if (window.renderDashboardPhotos) {
-    try { window.renderDashboardPhotos(document.getElementById("dash-photos"), sb); }
-    catch (e) { console.error("photo rail failed", e); }
+    try { window.renderDashboardPhotos(document.getElementById("dash-board"), sb); }
+    catch (e) { console.error("photo board failed", e); }
   }
 
   // Fetch all signals in parallel
