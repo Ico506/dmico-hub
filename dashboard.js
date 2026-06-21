@@ -17,6 +17,7 @@ window.renderDashboard = async function (container, sb) {
       <p class="dash-sub">Here's where everything stands.</p>
     </div>
     <div class="dash-board" id="dash-board">
+      <div id="dash-focus"></div>
       <div class="dash-grid" id="dash-grid">
         ${Array.from({ length: 6 }).map(() => `
           <div class="dash-card dash-card--loading">
@@ -36,7 +37,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -68,6 +69,7 @@ window.renderDashboard = async function (container, sb) {
         .select("amount")
         .gte("logged_at", new Date(today.getFullYear(), today.getMonth(), 1).toISOString())
         .lt("logged_at", new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString()),
+      sb.from("kv_store").select("value").eq("key", "pending_proposal").limit(1),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -273,6 +275,54 @@ window.renderDashboard = async function (container, sb) {
   document.getElementById("dash-grid").querySelectorAll(".dash-card").forEach((btn) => {
     btn.addEventListener("click", () => window.__openModule?.(btn.dataset.module));
   });
+
+  // ── This-week focus card: the bot's weekly FOCUS + today's priority + blocks ──
+  const escH = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const fmtDay = (iso) => {
+    try { return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric" }); }
+    catch (_) { return iso; }
+  };
+
+  let priority = "All caught up for today.";
+  if (nextExam && daysToExam != null && daysToExam <= 14) {
+    priority = `${nextExam.title} ${daysToExam === 0 ? "is today" : daysToExam === 1 ? "is tomorrow" : "in " + daysToExam + " days"}`;
+  } else if (worstChore) {
+    priority = `${worstChore.name} is ${worstChore.daysOver}d overdue`;
+  } else if (topGoal && topGoal.pct < 100) {
+    priority = `${topGoal.label} at ${topGoal.pct}%`;
+  }
+
+  const proposal = proposalRes?.data?.[0]?.value ?? null;
+  const focusEl = document.getElementById("dash-focus");
+  if (focusEl) {
+    const events = (proposal && Array.isArray(proposal.events)) ? proposal.events : [];
+    const upcoming = events
+      .filter((ev) => ev && ev.date && ev.date >= todayISO)
+      .sort((a, b) => (a.date + (a.start || "")).localeCompare(b.date + (b.start || "")));
+    const blocks = upcoming.slice(0, 6).map((ev) =>
+      `<li><span class="dash-focus-day">${escH(fmtDay(ev.date))}</span><span class="dash-focus-time">${escH(ev.start || "")}</span><span class="dash-focus-title">${escH(ev.title || "")}</span></li>`
+    ).join("");
+
+    if (proposal && (proposal.focus || events.length)) {
+      focusEl.innerHTML = `
+        <div class="dash-focus-card">
+          <div class="dash-focus-head">
+            <span class="dash-focus-tag">This week</span>
+            ${proposal.week_label ? `<span class="dash-focus-week">${escH(proposal.week_label)}</span>` : ""}
+          </div>
+          ${proposal.focus ? `<p class="dash-focus-line">${escH(proposal.focus)}</p>` : ""}
+          <p class="dash-focus-priority"><span class="dash-focus-star">⭐</span> Today: ${escH(priority)}</p>
+          ${blocks ? `<ul class="dash-focus-blocks">${blocks}</ul>` : `<p class="dash-focus-empty">No upcoming blocks left in this week's plan.</p>`}
+        </div>`;
+    } else {
+      focusEl.innerHTML = `
+        <div class="dash-focus-card dash-focus-card--bare">
+          <p class="dash-focus-priority"><span class="dash-focus-star">⭐</span> Today: ${escH(priority)}</p>
+          <p class="dash-focus-empty">No week plan yet. The bot posts one each Sunday (or run !crunch).</p>
+        </div>`;
+    }
+  }
 };
 
 function clip(str, len) {

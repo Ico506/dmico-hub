@@ -736,6 +736,65 @@ input, button { font-family: inherit; }
   50%       { opacity: 1; }
 }
 
+/* ── Dashboard "this week" focus card ──────────────────────── */
+.dash-focus-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.dash-focus-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dash-focus-tag {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.dash-focus-week { font-size: 0.78rem; color: var(--ink-faint); }
+.dash-focus-line {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.dash-focus-priority {
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+.dash-focus-star { color: var(--lantern); }
+.dash-focus-blocks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dash-focus-blocks li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--ink);
+  padding: 5px 8px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+.dash-focus-day { min-width: 56px; color: var(--accent-deep); font-weight: 600; }
+.dash-focus-time { min-width: 44px; color: var(--ink-soft); }
+.dash-focus-title { flex: 1; }
+.dash-focus-empty { margin: 0; font-size: 0.8rem; color: var(--ink-faint); }
+
 /* ── Dashboard photo board (draggable pinned pictures) ─────── */
 
 /* Widen the stage only for the dashboard so there's room to pin photos
