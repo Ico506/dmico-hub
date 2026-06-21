@@ -359,18 +359,50 @@ input, button { font-family: inherit; }
   .stage { padding: 28px 22px; }
 }
 
+/* ── Phone pass (~Android Chrome): Home, Finance, Hygiene first ─────────── */
+@media (max-width: 480px) {
+  .stage { padding: 20px 14px; }
+
+  /* Tabs wrap and share the row instead of overflowing (Finance has 4). */
+  .r-tabs { width: 100%; }
+  .r-tab { flex: 1 1 auto; text-align: center; }
+
+  /* Comfortable tap targets. */
+  .r-tab, .r-mini, .r-mini-select, .btn-primary, .btn-ghost,
+  .dash-card, .photo-add { min-height: 42px; }
+  .r-mini, .r-mini-select { padding: 10px 12px; }
+
+  /* Keep charts and any SVG inside the viewport. */
+  .fin-chart-svg, .fin-donut-svg, svg { max-width: 100%; height: auto; }
+
+  /* The photo board stacks on phones, so don't reserve a tall empty canvas,
+     and let the add-photo control flow instead of floating over content. */
+  .dash-board { min-height: auto; }
+  .photo-add-wrap { position: static; justify-content: flex-end; margin-bottom: 12px; }
+
+  /* Finance: stack the summary tiles and centre the allocation donut. */
+  .fin-inv-sum-item { min-width: 100%; }
+  .fin-inv-alloc { justify-content: center; }
+  .fin-inv-legend { width: 100%; }
+
+  /* Two-column form rows fully stack (reinforces the 600px rule on tiny screens). */
+  .r-row2 { flex-direction: column; }
+}
+
 /* ─────────────────────────────────────────────────────────────
    Research module
    ───────────────────────────────────────────────────────────── */
 
 .r-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   background: var(--paper-deep);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 4px;
   width: fit-content;
+  max-width: 100%;
   margin-bottom: 22px;
 }
 .r-tab {
@@ -1090,6 +1122,122 @@ input, button { font-family: inherit; }
 .h-state-btn.active:hover {
   background: var(--accent-deep);
   border-color: var(--accent-deep);
+}
+
+/* ── Hygiene Routine tab (anatomy figure) ──────────────────── */
+.hr-wrap {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.hr-figure-col { display: flex; flex-direction: column; gap: 12px; }
+.hr-toggle { width: fit-content; }
+.hr-figure {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 10px;
+}
+.hr-figure-svg { display: block; width: 100%; height: auto; max-height: 380px; }
+.hr-body { fill: var(--paper-deep); stroke: var(--line); stroke-width: 1.5; }
+.hr-hotspot { cursor: pointer; }
+.hr-dot {
+  fill: var(--accent-wash);
+  stroke: var(--accent);
+  stroke-width: 2;
+  transition: fill 0.15s ease, r 0.15s ease;
+}
+.hr-hotspot:hover .hr-dot { fill: var(--accent); }
+.hr-hotspot.active .hr-dot { fill: var(--lantern); stroke: var(--lantern); }
+
+.hr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hr-chip { cursor: pointer; }
+.hr-chip.on { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+
+.hr-global {
+  background: rgba(196, 102, 31, 0.08);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--lantern);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.hr-global-label {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lantern);
+  margin-bottom: 4px;
+}
+.hr-global p { margin: 0; font-size: 0.82rem; color: var(--ink-soft); line-height: 1.5; }
+
+.hr-detail { min-width: 0; }
+.hr-detail-empty {
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  padding: 36px 28px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.9rem;
+}
+.hr-detail-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+}
+.hr-detail-head { margin-bottom: 12px; }
+.hr-block { margin-bottom: 14px; }
+.hr-block-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.hr-products { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.hr-products li { font-size: 0.85rem; color: var(--ink); }
+.hr-phase { margin-bottom: 8px; }
+.hr-phase-label {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 3px;
+}
+.hr-steps { margin: 0 0 4px; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; }
+.hr-steps li { font-size: 0.85rem; color: var(--ink); line-height: 1.4; }
+.hr-step-note { color: var(--ink-soft); font-style: italic; }
+.hr-reminder {
+  background: rgba(196, 102, 31, 0.1);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+}
+.hr-ed-products, .hr-ed-steps, .hr-ed-reminders {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  resize: vertical;
+}
+
+@media (max-width: 720px) {
+  .hr-wrap { grid-template-columns: 1fr; }
+  .hr-figure-svg { max-height: 300px; }
 }
 
 /* ── Game Dev module (.gd-*) ───────────────────────────────── */

@@ -46,12 +46,16 @@
       <div class="r-tabs" role="tablist">
         <button class="r-tab current" data-tab="chores">Chores</button>
         <button class="r-tab" data-tab="supplies">Supplies</button>
+        <button class="r-tab" data-tab="routine">Routine</button>
       </div>
       <div id="h-panel"></div>`;
     root.querySelectorAll(".r-tab").forEach((t) =>
       t.addEventListener("click", () => {
         root.querySelectorAll(".r-tab").forEach((x) => x.classList.toggle("current", x === t));
-        t.dataset.tab === "chores" ? renderChores() : renderSupplies();
+        const tab = t.dataset.tab;
+        if (tab === "chores") renderChores();
+        else if (tab === "supplies") renderSupplies();
+        else renderRoutine();
       })
     );
     renderChores();
@@ -293,6 +297,191 @@
     card.querySelectorAll(".h-state-btn").forEach((btn) =>
       btn.classList.toggle("active", btn.dataset.state === st)
     );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  ROUTINE TAB (interactive anatomy figure)
+  // ════════════════════════════════════════════════════════════
+
+  let routineData = [];
+  let routineSide = "front";
+
+  // Hotspot positions on the figure (viewBox 0 0 220 470).
+  const HOTSPOTS = {
+    front: {
+      scalp: [110, 24], face: [110, 50], mouth: [110, 76],
+      armpits: [72, 120], belly_button: [110, 180], personal: [110, 238], feet: [110, 450],
+    },
+    back: {
+      behind_ears: [132, 50], back: [110, 150],
+    },
+  };
+
+  async function renderRoutine() {
+    const panel = el("h-panel");
+    panel.innerHTML = `<p class="r-status">Loading routine…</p>`;
+    const { data, error } = await SB.from("hygiene_routines").select("*").order("sort_order", { ascending: true });
+    if (error) { console.error(error); panel.innerHTML = `<p class="r-status">Couldn't load the routine.</p>`; return; }
+    routineData = data || [];
+    drawRoutine(null);
+  }
+
+  const globalRow = () => routineData.find((r) => r.area_key === "__global__");
+  const areaRow = (key) => routineData.find((r) => r.area_key === key);
+  const areasOnSide = (side) =>
+    routineData.filter((r) => r.area_key !== "__global__" && (r.side || "front") === side);
+
+  function bodySilhouette() {
+    return `
+      <circle cx="110" cy="48" r="30" class="hr-body"/>
+      <rect x="100" y="74" width="20" height="14" class="hr-body"/>
+      <rect x="72" y="86" width="76" height="150" rx="24" class="hr-body"/>
+      <rect x="44" y="92" width="20" height="120" rx="10" class="hr-body"/>
+      <rect x="156" y="92" width="20" height="120" rx="10" class="hr-body"/>
+      <rect x="76" y="224" width="68" height="44" rx="16" class="hr-body"/>
+      <rect x="80" y="258" width="24" height="180" rx="12" class="hr-body"/>
+      <rect x="116" y="258" width="24" height="180" rx="12" class="hr-body"/>
+      <ellipse cx="92" cy="448" rx="16" ry="10" class="hr-body"/>
+      <ellipse cx="128" cy="448" rx="16" ry="10" class="hr-body"/>`;
+  }
+
+  function figureSVG(side, activeKey) {
+    const spots = HOTSPOTS[side] || {};
+    const dots = Object.entries(spots).map(([key, [x, y]]) => {
+      const row = areaRow(key);
+      if (!row) return "";
+      const active = key === activeKey ? " active" : "";
+      return `<g class="hr-hotspot${active}" data-area="${esc(key)}">
+        <circle cx="${x}" cy="${y}" r="11" class="hr-dot"/>
+        <title>${esc(row.label)}</title>
+      </g>`;
+    }).join("");
+    return `<svg class="hr-figure-svg" viewBox="0 0 220 470" xmlns="http://www.w3.org/2000/svg">
+      ${bodySilhouette()}
+      ${dots}
+    </svg>`;
+  }
+
+  function stepsHTML(steps) {
+    steps = Array.isArray(steps) ? steps : [];
+    const stepLi = (s) =>
+      `<li>${esc(s.action || "")}${s.notes ? ` <span class="hr-step-note">(${esc(s.notes)})</span>` : ""}</li>`;
+    const hasPhase = steps.some((s) => s.phase);
+    if (!hasPhase) return `<ol class="hr-steps">${steps.map(stepLi).join("")}</ol>`;
+    const phases = {};
+    const order = [];
+    steps.forEach((s) => {
+      const p = s.phase || "Steps";
+      if (!phases[p]) { phases[p] = []; order.push(p); }
+      phases[p].push(s);
+    });
+    return order.map((p) =>
+      `<div class="hr-phase"><span class="hr-phase-label">${esc(p)}</span><ol class="hr-steps">${phases[p].map(stepLi).join("")}</ol></div>`
+    ).join("");
+  }
+
+  function areaDetailHTML(row) {
+    if (!row) return `<div class="hr-detail-empty">Tap a body area to see its products, routine, and reminders.</div>`;
+    const products = Array.isArray(row.products) ? row.products : [];
+    const steps = Array.isArray(row.steps) ? row.steps : [];
+    const meta = [row.frequency, row.when_to].filter(Boolean).join("  ·  ");
+    return `
+      <div class="hr-detail-card">
+        <div class="hr-detail-head">
+          <h3 class="r-title">${esc(row.label)}</h3>
+          ${meta ? `<div class="r-meta">${esc(meta)}</div>` : ""}
+        </div>
+        ${products.length ? `<div class="hr-block"><span class="hr-block-label">Products</span><ul class="hr-products">${products.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>` : ""}
+        ${steps.length ? `<div class="hr-block"><span class="hr-block-label">Routine</span>${stepsHTML(steps)}</div>` : ""}
+        ${row.reminders ? `<div class="hr-reminder">${esc(row.reminders)}</div>` : ""}
+        <div class="r-actions"><button class="r-mini hr-edit-btn" data-key="${esc(row.area_key)}">Edit</button></div>
+      </div>`;
+  }
+
+  function drawRoutine(activeKey) {
+    const panel = el("h-panel");
+    const g = globalRow();
+    const chips = areasOnSide(routineSide)
+      .map((r) => `<button class="r-chip hr-chip${r.area_key === activeKey ? " on" : ""}" data-area="${esc(r.area_key)}">${esc(r.label)}</button>`)
+      .join("");
+
+    panel.innerHTML = `
+      <div class="hr-wrap">
+        <div class="hr-figure-col">
+          <div class="hr-toggle r-tabs">
+            <button class="r-tab ${routineSide === "front" ? "current" : ""}" data-side="front">Front</button>
+            <button class="r-tab ${routineSide === "back" ? "current" : ""}" data-side="back">Back</button>
+          </div>
+          <div class="hr-figure">${figureSVG(routineSide, activeKey)}</div>
+          <div class="hr-chips">${chips}</div>
+          ${g && g.reminders ? `<div class="hr-global"><span class="hr-global-label">${esc(g.label || "Key reminders")}</span><p>${esc(g.reminders)}</p></div>` : ""}
+        </div>
+        <div class="hr-detail" id="hr-detail">${areaDetailHTML(areaRow(activeKey))}</div>
+      </div>`;
+
+    panel.querySelectorAll(".hr-toggle [data-side]").forEach((b) =>
+      b.addEventListener("click", () => { routineSide = b.dataset.side; drawRoutine(null); }));
+    panel.querySelectorAll(".hr-hotspot, .hr-chip").forEach((h) =>
+      h.addEventListener("click", () => drawRoutine(h.dataset.area)));
+    const editBtn = panel.querySelector(".hr-edit-btn");
+    if (editBtn) editBtn.addEventListener("click", () => drawAreaEdit(editBtn.dataset.key));
+  }
+
+  function drawAreaEdit(key) {
+    const row = areaRow(key);
+    if (!row) return;
+    const detail = el("hr-detail");
+    const products = Array.isArray(row.products) ? row.products : [];
+    const steps = Array.isArray(row.steps) ? row.steps : [];
+    const stepLines = steps.map((s) =>
+      `${s.phase ? s.phase + ": " : ""}${s.action || ""}${s.notes ? " (" + s.notes + ")" : ""}`).join("\n");
+    detail.innerHTML = `
+      <div class="hr-detail-card">
+        <h3 class="r-title">Edit ${esc(row.label)}</h3>
+        <div class="r-field"><label>Products <span class="r-label-optional">(one per line)</span></label><textarea class="hr-ed-products" rows="4">${esc(products.join("\n"))}</textarea></div>
+        <div class="r-field"><label>Routine steps <span class="r-label-optional">(one per line, optional "PHASE: action (notes)")</span></label><textarea class="hr-ed-steps" rows="6">${esc(stepLines)}</textarea></div>
+        <div class="r-row2">
+          <div class="r-field"><label>Frequency</label><input class="hr-ed-freq" type="text" value="${esc(row.frequency || "")}" /></div>
+          <div class="r-field"><label>When</label><input class="hr-ed-when" type="text" value="${esc(row.when_to || "")}" /></div>
+        </div>
+        <div class="r-field"><label>Reminders</label><textarea class="hr-ed-reminders" rows="2">${esc(row.reminders || "")}</textarea></div>
+        <div class="r-actions">
+          <button class="btn-primary r-btn hr-save">Save</button>
+          <button class="r-mini hr-cancel">Cancel</button>
+          <span class="hr-ed-status r-status"></span>
+        </div>
+      </div>`;
+    detail.querySelector(".hr-cancel").addEventListener("click", () => drawRoutine(key));
+    detail.querySelector(".hr-save").addEventListener("click", () => saveAreaEdit(key, detail));
+  }
+
+  function parseStepLine(line) {
+    const m = line.match(/^\s*(?:([A-Za-z][A-Za-z ]*?):\s*)?(.*?)(?:\s*\(([^)]*)\))?\s*$/);
+    const step = { action: (m && m[2] ? m[2].trim() : line.trim()) };
+    if (m && m[1]) step.phase = m[1].trim();
+    if (m && m[3]) step.notes = m[3].trim();
+    return step;
+  }
+
+  async function saveAreaEdit(key, detail) {
+    const row = areaRow(key);
+    if (!row) return;
+    const status = detail.querySelector(".hr-ed-status");
+    const products = detail.querySelector(".hr-ed-products").value.split("\n").map((s) => s.trim()).filter(Boolean);
+    const steps = detail.querySelector(".hr-ed-steps").value.split("\n").map((s) => s.trim()).filter(Boolean).map(parseStepLine);
+    const patch = {
+      products,
+      steps,
+      frequency: detail.querySelector(".hr-ed-freq").value.trim() || null,
+      when_to: detail.querySelector(".hr-ed-when").value.trim() || null,
+      reminders: detail.querySelector(".hr-ed-reminders").value.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+    status.textContent = "Saving…";
+    const { error } = await SB.from("hygiene_routines").update(patch).eq("id", row.id);
+    if (error) { console.error(error); status.textContent = "Couldn't save. Try again."; return; }
+    Object.assign(row, patch); // keep local cache in sync
+    drawRoutine(key);
   }
 
   window.renderHygiene = render;
