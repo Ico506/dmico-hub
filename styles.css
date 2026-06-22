@@ -531,7 +531,7 @@ input, button { font-family: inherit; }
   color: var(--accent-deep);
   background: var(--accent-wash);
   padding: 3px 9px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
 }
 
 .r-chips { margin-bottom: 16px; }
@@ -540,7 +540,7 @@ input, button { font-family: inherit; }
   color: var(--ink-soft);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 5px 13px;
   cursor: pointer;
   transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
@@ -794,6 +794,51 @@ input, button { font-family: inherit; }
 @keyframes dash-pulse {
   0%, 100% { opacity: 0.5; }
   50%       { opacity: 1; }
+}
+
+/* ── Interaction polish — playful but calm. Reduced-motion safe. ───── */
+@keyframes dash-card-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes lantern-pop {
+  0% { transform: none; } 45% { transform: scale(1.045); } 100% { transform: none; }
+}
+@keyframes lantern-glow-swell {
+  0%, 100% { box-shadow: 0 0 0 4px var(--lantern-glow); }
+  50%      { box-shadow: 0 0 0 8px rgba(196, 102, 31, 0.18); }
+}
+
+/* Tactile buttons: hover lift on the primary action, springy press on all. */
+.btn-primary, .r-btn, .btn-ghost, .r-mini, .r-link {
+  transition: background .18s ease, color .18s ease, border-color .18s ease,
+              transform .08s ease, box-shadow .2s ease;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(95, 111, 82, 0.26); }
+.btn-primary:active, .btn-ghost:active, .r-mini:active, .r-btn:active { transform: translateY(1px) scale(.985); }
+
+/* Dashboard cards: stagger in, lift on hover, press, and the accent bar grows. */
+.dash-card {
+  animation: dash-card-in .5s cubic-bezier(.22,.61,.36,1) both;
+  transition: transform .16s ease, box-shadow .2s ease, border-left-width .16s ease;
+}
+.dash-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(69, 48, 30, 0.13); }
+.dash-card:active { transform: translateY(-1px) scale(.99); }
+.dash-card--green:hover, .dash-card--orange:hover,
+.dash-card--yellow:hover, .dash-card--default:hover { border-left-width: 5px; }
+
+/* Lanterns: glow swells on hover, a soft pop when selected. */
+.lantern.lit:hover .dot { animation: lantern-glow-swell 1.6s ease-in-out infinite; }
+.lantern.current { animation: lantern-pop .4s ease; }
+
+/* Tabs: smooth state change with a small press. */
+.r-tab { transition: background .2s ease, color .2s ease, box-shadow .2s ease, transform .08s ease; }
+.r-tab:active { transform: translateY(1px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-card, .lantern.current, .lantern.lit:hover .dot { animation: none !important; }
+  .btn-primary:hover, .btn-primary:active, .btn-ghost:active, .r-mini:active, .r-btn:active,
+  .dash-card:hover, .dash-card:active, .r-tab:active { transform: none !important; }
 }
 
 /* ── Dashboard "this week" focus card ──────────────────────── */
@@ -1131,7 +1176,7 @@ input, button { font-family: inherit; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 3px 10px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
 }
 
 .h-status-ok    { background: var(--accent-wash); color: var(--accent-deep); }
@@ -1411,7 +1456,7 @@ input, button { font-family: inherit; }
   color: var(--ink-faint);
   background: var(--surface);
   padding: 1px 7px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
 }
 
 .gd-col-cards {
@@ -1721,7 +1766,7 @@ input, button { font-family: inherit; }
   letter-spacing: 0.07em;
   text-transform: uppercase;
   padding: 2px 9px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   background: var(--accent-deep);
   color: var(--paper);
   flex-shrink: 0;
@@ -2659,7 +2704,7 @@ input, button { font-family: inherit; }
   font-weight: 600;
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   padding: 2px 9px;
 }
 

@@ -262,8 +262,8 @@ window.renderDashboard = async function (container, sb) {
 
   document.getElementById("dash-grid").innerHTML = cards
     .map(
-      (c) => `
-    <button class="dash-card dash-card--${c.tone}" data-module="${c.id}">
+      (c, i) => `
+    <button class="dash-card dash-card--${c.tone}" data-module="${c.id}" style="animation-delay:${i * 55}ms">
       <span class="dash-card-icon">${c.icon}</span>
       <span class="dash-card-label">${c.label}</span>
       <span class="dash-card-primary">${c.primary}</span>
@@ -271,6 +271,8 @@ window.renderDashboard = async function (container, sb) {
     </button>`
     )
     .join("");
+
+  animateCounts(document.getElementById("dash-grid"));
 
   document.getElementById("dash-grid").querySelectorAll(".dash-card").forEach((btn) => {
     btn.addEventListener("click", () => window.__openModule?.(btn.dataset.module));
@@ -328,4 +330,34 @@ window.renderDashboard = async function (container, sb) {
 function clip(str, len) {
   if (!str) return "";
   return str.length > len ? str.slice(0, len - 1) + "…" : str;
+}
+
+/* Count the first number in each card's primary line up from zero on load.
+   Preserves prefixes/suffixes ("RM 1,200 saved" animates the 1,200). Skips
+   entirely under reduced-motion. */
+function animateCounts(scope) {
+  if (!scope) return;
+  if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  scope.querySelectorAll(".dash-card-primary").forEach((node) => {
+    const full = node.textContent;
+    const m = full.match(/[\d][\d,]*(\.\d+)?/);
+    if (!m) return;
+    const target = parseFloat(m[0].replace(/,/g, ""));
+    if (!isFinite(target) || target <= 0) return;
+    const hasComma = m[0].indexOf(",") !== -1;
+    const decimals = m[0].indexOf(".") !== -1 ? (m[0].split(".")[1] || "").length : 0;
+    const fmt = (n) => {
+      let s = decimals ? n.toFixed(decimals) : String(Math.round(n));
+      return hasComma ? Number(s).toLocaleString() : s;
+    };
+    const start = performance.now(), dur = 750;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      node.textContent = full.replace(m[0], fmt(target * eased));
+      if (t < 1) requestAnimationFrame(tick);
+      else node.textContent = full;
+    };
+    requestAnimationFrame(tick);
+  });
 }
