@@ -841,6 +841,40 @@ input, button { font-family: inherit; }
   .dash-card:hover, .dash-card:active, .r-tab:active { transform: none !important; }
 }
 
+/* ── Sliding tab indicator (interactions.js positions it) ──────────── */
+.r-tabs.has-ind { position: relative; }
+.r-tabs .r-tab { position: relative; z-index: 1; }
+.r-tabs.has-ind .r-tab.current { background: transparent; box-shadow: none; }
+.r-tab-ind {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+  border-radius: 10px;
+  opacity: 0;
+  will-change: transform, width, height;
+}
+
+/* ── Celebration confetti (window.dmicoCelebrate) ─────────────────── */
+.dmico-confetti { position: fixed; z-index: 9999; pointer-events: none; }
+.dmico-confetti i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 9px;
+  border-radius: 2px;
+  animation: dmico-confetti-fly 0.95s cubic-bezier(.2,.7,.3,1) forwards;
+}
+@keyframes dmico-confetti-fly {
+  0%   { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--dx, 0), calc(var(--dy, 0) + 130px)) rotate(var(--rot, 0)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .dmico-confetti { display: none; } }
+
 /* ── Dashboard "this week" focus card ──────────────────────── */
 .dash-focus-card {
   background: var(--surface);

@@ -1406,10 +1406,14 @@
     if (raw === null) return;
     const n = parseFloat(raw);
     if (isNaN(n) || n <= 0) { alert("Enter a positive amount."); return; }
+    const wasDone = Number(goal.current || 0) >= Number(goal.target);
     const newTotal = Number(goal.current || 0) + n;
     const { error } = await SB.from("finance_goals")
       .update({ current: newTotal, updated_at: new Date().toISOString() }).eq("id", goal.id);
-    if (!error) drawGoals();
+    if (!error) {
+      if (!wasDone && newTotal >= Number(goal.target) && window.dmicoCelebrate) window.dmicoCelebrate(card);
+      drawGoals();
+    }
   }
 
   // Manual override: set the absolute saved total directly.
@@ -1420,9 +1424,13 @@
     if (raw === null) return;
     const n = parseFloat(raw);
     if (isNaN(n) || n < 0) { alert("Enter a valid amount."); return; }
+    const wasDone = Number(goal.current || 0) >= Number(goal.target);
     const { error } = await SB.from("finance_goals")
       .update({ current: n, updated_at: new Date().toISOString() }).eq("id", goal.id);
-    if (!error) drawGoals();
+    if (!error) {
+      if (!wasDone && n >= Number(goal.target) && window.dmicoCelebrate) window.dmicoCelebrate(card);
+      drawGoals();
+    }
   }
 
   // ════════════════════════════════════════════════════════════
