@@ -25,13 +25,41 @@
   --lantern-glow: rgba(196, 102, 31, 0.38);
 
   --clay: #8A3F1E;
+  --amber: #B08A2A;                       /* the "yellow" dashboard tone */
 
   --radius: 14px;
   --radius-lg: 22px;
+  --radius-pill: 999px;                   /* badges, tags, chips, progress */
   --shadow: 0 1px 2px rgba(69, 48, 30, 0.05), 0 8px 24px rgba(69, 48, 30, 0.07);
+
+  /* Typography scale (from the design spec). */
+  --text-body-sz: 0.9rem;
+  --text-small:   0.8rem;
+  --text-meta:    0.72rem;
 
   --display: "Zen Maru Gothic", system-ui, sans-serif;
   --body: "Zen Kaku Gothic New", system-ui, sans-serif;
+
+  /* ── Semantic aliases (from the design spec) — prefer these in new work,
+     they point at the base ramp so a palette change ripples everywhere. ── */
+  --bg-page:        var(--paper);
+  --bg-well:        var(--paper-deep);
+  --surface-card:   var(--surface);
+  --surface-inset:  var(--surface-2);
+  --text-strong:    var(--ink);
+  --text-body:      var(--ink);
+  --text-muted:     var(--ink-soft);
+  --text-faint:     var(--ink-faint);
+  --text-on-accent: #ffffff;
+  --border:         var(--line);
+  --border-focus:   var(--accent);
+  --action:         var(--accent);
+  --action-hover:   var(--accent-deep);
+  --focus-ring:     var(--accent-wash);
+  --live:           var(--lantern);
+  --danger:         var(--clay);
+  --warn:           var(--lantern);
+  --ok:             var(--accent-deep);
 }
 
 * { box-sizing: border-box; }
