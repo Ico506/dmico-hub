@@ -227,6 +227,7 @@
 
     card.querySelector(".th-status-select").addEventListener("change", async (e) => {
       const newStatus = e.target.value;
+      const prevStatus = c.status;
       const { error } = await SB.from("thesis_chapters").update({ status: newStatus }).eq("id", c.id);
       if (error) { console.error(error); return; }
       const chip = card.querySelector(".th-status");
@@ -234,6 +235,7 @@
       chip.className = `r-chip th-status th-status-${newStatus}`;
       card.classList.toggle("th-chapter-done", newStatus === "done");
       c.status = newStatus;
+      if (newStatus === "done" && prevStatus !== "done" && window.dmicoCelebrate) window.dmicoCelebrate(card);
     });
 
     card.querySelector(".th-log-words-btn").addEventListener("click", () => toggleWordLog(c, card));

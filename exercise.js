@@ -98,6 +98,24 @@
     await loadLogs();
     drawChart();
     drawList();
+    celebrateIfGoalReached(w);
+  }
+
+  // Fire a confetti burst when this weigh-in first reaches the goal weight.
+  async function celebrateIfGoalReached(justLogged) {
+    try {
+      if (!window.dmicoCelebrate) return;
+      if (!profile) await loadProfile();
+      const goal = profile && profile.goal_weight_kg != null ? Number(profile.goal_weight_kg) : null;
+      if (goal == null) return;
+      const type = profile.goal_type || "lose";
+      const reached = (v) =>
+        type === "gain" ? v >= goal : type === "maintain" ? Math.abs(v - goal) <= 0.5 : v <= goal;
+      const prev = logs.length >= 2 ? Number(logs[logs.length - 2].weight_kg) : null;
+      if (reached(justLogged) && (prev == null || !reached(prev))) {
+        window.dmicoCelebrate(el("ex-chart") || el("ex-save"));
+      }
+    } catch (e) { /* never let celebration break logging */ }
   }
 
   function drawChart() {

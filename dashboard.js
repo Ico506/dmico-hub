@@ -19,7 +19,7 @@ window.renderDashboard = async function (container, sb) {
     <div class="dash-board" id="dash-board">
       <div id="dash-focus"></div>
       <div class="dash-grid" id="dash-grid">
-        ${Array.from({ length: 6 }).map(() => `
+        ${Array.from({ length: 7 }).map(() => `
           <div class="dash-card dash-card--loading">
             <div class="dash-skel"></div>
             <div class="dash-skel dash-skel--short"></div>
@@ -37,7 +37,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -70,6 +70,12 @@ window.renderDashboard = async function (container, sb) {
         .gte("logged_at", new Date(today.getFullYear(), today.getMonth(), 1).toISOString())
         .lt("logged_at", new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString()),
       sb.from("kv_store").select("value").eq("key", "pending_proposal").limit(1),
+      sb.from("weight_logs")
+        .select("weight_kg, logged_at")
+        .order("logged_at", { ascending: true }),
+      sb.from("exercise_profile")
+        .select("goal_weight_kg, goal_type")
+        .limit(1),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -130,6 +136,23 @@ window.renderDashboard = async function (container, sb) {
   const totalCurrent = chapters.reduce((s, c) => s + (c.current_words || 0), 0);
   const thesisPct    = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
   const doneChapters = chapters.filter((c) => c.status === "done").length;
+
+  // ── Exercise ───────────────────────────────────────────────
+  const wlogs   = weightLogs.data ?? [];
+  const latestW = wlogs.length ? Number(wlogs[wlogs.length - 1].weight_kg) : null;
+  const firstW  = wlogs.length ? Number(wlogs[0].weight_kg) : null;
+  const exProf  = exerciseProfile?.data?.[0] ?? null;
+  const exGoal  = exProf && exProf.goal_weight_kg != null ? Number(exProf.goal_weight_kg) : null;
+  const exType  = exProf?.goal_type || "lose";
+  const exReached = (latestW != null && exGoal != null) && (
+    exType === "gain" ? latestW >= exGoal
+    : exType === "maintain" ? Math.abs(latestW - exGoal) <= 0.5
+    : latestW <= exGoal
+  );
+  const exRemaining = (latestW != null && exGoal != null) ? Math.abs(+(exGoal - latestW).toFixed(1)) : null;
+  const exTrend = (latestW != null && firstW != null && wlogs.length > 1)
+    ? +(latestW - firstW).toFixed(1) : null;
+  const kgFmt = (n) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg`;
 
   // Read monthly budget limit from localStorage (set in Finance module).
   const budgetRaw   = localStorage.getItem("dmico-hub-monthly-budget");
@@ -257,6 +280,28 @@ window.renderDashboard = async function (container, sb) {
         : thesisPct >= 50
         ? "yellow"
         : "default",
+    },
+    {
+      id: "exercise",
+      icon: "🏃",
+      label: "Exercise",
+      primary: latestW != null ? kgFmt(latestW) : "No weigh-ins",
+      secondary: latestW == null
+        ? "Log your weight to start a trend"
+        : exGoal == null
+        ? (exTrend != null
+            ? `${exTrend < 0 ? "▼" : exTrend > 0 ? "▲" : "→"} ${kgFmt(Math.abs(exTrend))} over ${wlogs.length} logs`
+            : "First weigh-in logged · set a goal")
+        : exReached
+        ? `Goal weight reached 🎉`
+        : `${kgFmt(exRemaining)} to your ${kgFmt(exGoal)} goal`,
+      tone: latestW == null
+        ? "dim"
+        : exGoal == null
+        ? "green"
+        : exReached
+        ? "green"
+        : "yellow",
     },
   ];
 
