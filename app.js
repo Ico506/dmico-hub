@@ -33,6 +33,8 @@ const MODULES = [
     blurb: "Expense tracker and savings goals leaderboard." },
   { id: "thesis",     label: "Thesis",     lit: true,
     blurb: "MPhil chapter tracker and writing log." },
+  { id: "exercise",   label: "Exercise",   lit: true,
+    blurb: "Weight tracking and a healthy calorie goal." },
 ];
 
 const el = (id) => document.getElementById(id);
@@ -169,6 +171,8 @@ function openModule(id) {
     window.renderFinance(body, sb);
   } else if (id === "thesis" && window.renderThesis) {
     window.renderThesis(body, sb);
+  } else if (id === "exercise" && window.renderExercise) {
+    window.renderExercise(body, sb);
   } else {
     body.innerHTML =
       `<div class="empty">

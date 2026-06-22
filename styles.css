@@ -3076,6 +3076,79 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   margin: 4px 0 0;
 }
 
+/* ── Exercise module (.ex-*) ───────────────────────────────── */
+.ex-addform, .ex-goalform { margin-bottom: 18px; }
+.ex-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ex-chart-now { font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+.ex-chart-trend { font-size: 0.8rem; color: var(--ink-soft); }
+.ex-trend-down { color: var(--accent-deep); }
+.ex-trend-up { color: var(--lantern); }
+#ex-chart { margin-bottom: 18px; }
+
+.ex-log-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.ex-log-w { font-weight: 600; color: var(--ink); min-width: 80px; }
+.ex-log-d { font-size: 0.82rem; color: var(--ink-soft); }
+.ex-log-note { font-size: 0.82rem; color: var(--ink-faint); flex: 1; }
+.ex-log-row .r-del { margin-left: auto; }
+
+.ex-plan-note, .ex-plan-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+}
+.ex-plan-note { color: var(--ink-faint); font-size: 0.9rem; text-align: center; }
+.ex-plan-headline { margin: 0 0 6px; font-size: 0.98rem; line-height: 1.5; color: var(--ink); }
+.ex-plan-eta { margin: 0 0 12px; font-size: 0.88rem; color: var(--ink-soft); }
+.ex-plan-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ex-plan-stats > div {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.ex-plan-k {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.ex-plan-v { font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+.ex-plan-floor {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: var(--lantern);
+  background: rgba(196, 102, 31, 0.1);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.ex-plan-disclaimer { margin: 0; font-size: 0.76rem; color: var(--ink-faint); font-style: italic; }
+
 .fin-ov-rule-bar-block {
   display: flex;
   flex-direction: column;
