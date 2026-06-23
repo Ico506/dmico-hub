@@ -35,6 +35,8 @@ const MODULES = [
     blurb: "MPhil chapter tracker and writing log." },
   { id: "exercise",   label: "Exercise",   lit: true,
     blurb: "Weight tracking and a healthy calorie goal." },
+  { id: "entertainment", label: "Entertainment", lit: true,
+    blurb: "Planned game and movie sessions, and your play/watch library." },
 ];
 
 const el = (id) => document.getElementById(id);
@@ -173,6 +175,8 @@ function openModule(id) {
     window.renderThesis(body, sb);
   } else if (id === "exercise" && window.renderExercise) {
     window.renderExercise(body, sb);
+  } else if (id === "entertainment" && window.renderEntertainment) {
+    window.renderEntertainment(body, sb);
   } else {
     body.innerHTML =
       `<div class="empty">
