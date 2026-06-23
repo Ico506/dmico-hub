@@ -151,6 +151,29 @@ function renderRail() {
 // Exposed for dashboard cards to navigate between modules
 window.__openModule = function (id) { openModule(id); };
 
+/* Hub-as-editor: append an edit intent to the kv 'hub_actions' queue. The bot
+   drains it (~30s) and applies to Google Calendar / the library server-side,
+   then refreshes the snapshot. Returns true on success. */
+window.dmicoEnqueue = async function (action) {
+  if (!sb) return false;
+  action.id = action.id ||
+    (Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+  action.ts = new Date().toISOString();
+  try {
+    const res = await sb.from("kv_store").select("value").eq("key", "hub_actions").limit(1);
+    const cur = res?.data?.[0]?.value;
+    const queue = (cur && Array.isArray(cur.queue)) ? cur.queue : [];
+    queue.push(action);
+    const { error } = await sb.from("kv_store")
+      .upsert({ key: "hub_actions", value: { queue } }, { onConflict: "key" });
+    if (error) { console.error("enqueue failed", error); return false; }
+    return true;
+  } catch (e) {
+    console.error("enqueue threw", e);
+    return false;
+  }
+};
+
 function openModule(id) {
   const m = MODULES.find((x) => x.id === id);
   if (!m || !m.lit) return;
