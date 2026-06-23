@@ -21,6 +21,8 @@ const sb = configured
 const MODULES = [
   { id: "dashboard",  label: "Home",       lit: true,
     blurb: "Your life OS at a glance." },
+  { id: "week",       label: "Week",       lit: true,
+    blurb: "Your full Google Calendar week: anchors, focus, study, and play." },
   { id: "research",   label: "Research",   lit: true,
     blurb: "Your reference library and paper discovery live here." },
   { id: "selfstudy",  label: "Self-study", lit: true,
@@ -161,6 +163,8 @@ function openModule(id) {
   const body = el("stage-body");
   if (id === "dashboard" && window.renderDashboard) {
     window.renderDashboard(body, sb);
+  } else if (id === "week" && window.renderWeek) {
+    window.renderWeek(body, sb);
   } else if (id === "research" && window.renderResearch) {
     window.renderResearch(body, sb);
   } else if (id === "selfstudy" && window.renderSelfStudy) {
