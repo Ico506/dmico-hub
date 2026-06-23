@@ -18,6 +18,7 @@ window.renderDashboard = async function (container, sb) {
     </div>
     <div class="dash-board" id="dash-board">
       <div id="dash-focus"></div>
+      <div id="dash-week"></div>
       <div class="dash-grid" id="dash-grid">
         ${Array.from({ length: 7 }).map(() => `
           <div class="dash-card dash-card--loading">
@@ -37,7 +38,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile, weekCalRes] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -76,6 +77,9 @@ window.renderDashboard = async function (container, sb) {
       sb.from("exercise_profile")
         .select("goal_weight_kg, goal_type")
         .limit(1),
+      // Calendar vNext Item 3: the bot's resolved week (anchors + focus +
+      // entertainment), snapshotted into kv since the frontend has no GCal creds.
+      sb.from("kv_store").select("value").eq("key", "week_calendar").limit(1),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -369,6 +373,66 @@ window.renderDashboard = async function (container, sb) {
           <p class="dash-focus-empty">No week plan yet. The bot posts one each Sunday (or run !crunch).</p>
         </div>`;
     }
+  }
+
+  // ── Your-week card: the bot's resolved Google Calendar week (Item 3) ────────
+  // Read from kv 'week_calendar', snapshotted by the bot (the frontend has no
+  // Google credentials). Anchors + focus + entertainment, colour-coded.
+  const weekCal = weekCalRes?.data?.[0]?.value ?? null;
+  const weekEl = document.getElementById("dash-week");
+  if (weekEl && weekCal && Array.isArray(weekCal.events)) {
+    const TYPE_COLOR = {
+      anchor: "#5b8def", focus: "#3aa675", crunch: "#d98a2b",
+      entertainment: "#9b6dd6", event: "#8a8f98",
+    };
+    const TYPE_LABEL = {
+      anchor: "Anchor", focus: "Focus", crunch: "Study",
+      entertainment: "Play", event: "Event",
+    };
+    const base = new Date((weekCal.week_monday || todayISO) + "T00:00:00");
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const byDate = {};
+    weekCal.events.forEach((ev) => { (byDate[ev.date] = byDate[ev.date] || []).push(ev); });
+
+    const cols = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(base); d.setDate(base.getDate() + i);
+      const key = iso(d);
+      const isToday = key === todayISO;
+      const items = (byDate[key] || []).map((ev) => {
+        const c = TYPE_COLOR[ev.type] || TYPE_COLOR.event;
+        const time = ev.allDay ? "all day" : escH(ev.start || "");
+        return `<li class="dweek-ev" style="border-left:3px solid ${c}"><span class="dweek-t">${time}</span> ${escH(ev.title || "")}</li>`;
+      }).join("");
+      return `<div class="dweek-col${isToday ? " dweek-col--today" : ""}">
+          <div class="dweek-day">${d.toLocaleDateString(undefined, { weekday: "short" })}<span class="dweek-num">${d.getDate()}</span></div>
+          <ul class="dweek-list">${items || `<li class="dweek-empty">—</li>`}</ul>
+        </div>`;
+    }).join("");
+
+    const legend = Object.keys(TYPE_LABEL).map((t) =>
+      `<span class="dweek-key"><i style="background:${TYPE_COLOR[t]}"></i>${TYPE_LABEL[t]}</span>`
+    ).join("");
+
+    weekEl.innerHTML = `
+      <style>
+        #dash-week .dweek-grid{display:grid;grid-template-columns:repeat(7,minmax(96px,1fr));gap:8px;overflow-x:auto;padding-bottom:4px;}
+        #dash-week .dweek-col{border-radius:10px;padding:8px 6px;background:rgba(127,127,127,0.06);min-height:64px;}
+        #dash-week .dweek-col--today{background:rgba(91,141,239,0.12);outline:1px solid rgba(91,141,239,0.35);}
+        #dash-week .dweek-day{font-weight:600;font-size:0.8rem;opacity:0.8;display:flex;justify-content:space-between;margin-bottom:6px;}
+        #dash-week .dweek-num{opacity:0.6;}
+        #dash-week .dweek-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;}
+        #dash-week .dweek-ev{font-size:0.72rem;line-height:1.25;padding:2px 6px;border-radius:4px;background:rgba(127,127,127,0.08);}
+        #dash-week .dweek-t{font-variant-numeric:tabular-nums;opacity:0.7;margin-right:3px;}
+        #dash-week .dweek-empty{font-size:0.72rem;opacity:0.35;text-align:center;}
+        #dash-week .dweek-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:0.72rem;opacity:0.8;}
+        #dash-week .dweek-key{display:inline-flex;align-items:center;gap:4px;}
+        #dash-week .dweek-key i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+      </style>
+      <div class="dash-focus-card dweek-card">
+        <div class="dash-focus-head"><span class="dash-focus-tag">Your week</span></div>
+        <div class="dweek-grid">${cols}</div>
+        <div class="dweek-legend">${legend}</div>
+      </div>`;
   }
 };
 
