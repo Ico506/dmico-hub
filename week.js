@@ -73,6 +73,7 @@ window.renderWeek = async function (container, sb) {
         <button id="wk-addbtn">Add block</button>
       </div>
       <p class="wk-msg" id="wk-msg" hidden></p>
+      <details class="wk-ripple-wrap" style="margin:2px 0"><summary style="cursor:pointer;font-size:0.85rem;font-weight:600;opacity:0.85">🌀 Ripple my day (a sudden plan came up)</summary><div id="wk-ripple" style="margin-top:10px"></div></details>
       <div id="wk-body"><p class="wk-blank">Loading your week…</p></div>
       <div class="wk-legend" id="wk-legend"></div>
     </div>`;
@@ -190,4 +191,9 @@ window.renderWeek = async function (container, sb) {
   }
 
   await draw();
+
+  if (window.dmicoRippleWidget) {
+    try { await window.dmicoRippleWidget(document.getElementById("wk-ripple"), sb); }
+    catch (e) { console.error("ripple widget failed", e); }
+  }
 };

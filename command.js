@@ -74,6 +74,12 @@ window.renderControl = async function (container, sb) {
       </section>
 
       <section>
+        <h3>🌀 Ripple my day</h3>
+        <p class="ctl-sub">A sudden plan came up? Drop it in and push the rest of today back.</p>
+        <div id="ctl-ripple"></div>
+      </section>
+
+      <section>
         <h3>⏰ Bot times</h3>
         <p class="ctl-sub">When the bot runs its daily check-in, drift scan, and calendar snapshot. Applies from the next cycle.</p>
         <div class="ctl-times">
@@ -140,6 +146,7 @@ window.renderControl = async function (container, sb) {
       start: r.querySelector(".a-start").value,
       end: r.querySelector(".a-end").value,
       days: Array.from(r.querySelectorAll(".a-day:checked")).map((c) => +c.value),
+      movable: r.querySelector(".a-movable").checked,
     }));
   }
   function renderAnchors() {
@@ -151,6 +158,7 @@ window.renderControl = async function (container, sb) {
         <span class="a-days">${DAYS.map(([lbl, d]) =>
           `<label><input class="a-day" type="checkbox" value="${d}" ${(a.days || []).includes(d) ? "checked" : ""}/>${lbl}</label>`
         ).join("")}</span>
+        <label class="a-mov" title="Can a ripple move this block?"><input class="a-movable" type="checkbox" ${a.movable !== false ? "checked" : ""}/>movable</label>
         <button class="a-rm" title="Remove">✕</button>
       </div>`).join("");
     host.querySelectorAll(".a-rm").forEach((btn, i) =>
@@ -299,4 +307,10 @@ window.renderControl = async function (container, sb) {
     const ok = await window.dmicoKvSet("profile_data", data);
     pfMsg.hidden = false; pfMsg.textContent = ok ? "Profile saved." : "Couldn't save — try again.";
   });
+
+  // ── Ripple widget ───────────────────────────────────────────
+  if (window.dmicoRippleWidget) {
+    try { await window.dmicoRippleWidget(document.getElementById("ctl-ripple"), sb); }
+    catch (e) { console.error("ripple widget failed", e); }
+  }
 };
