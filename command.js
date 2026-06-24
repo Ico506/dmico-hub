@@ -41,6 +41,9 @@ window.renderControl = async function (container, sb) {
       #ctl .ctl-streaks{display:flex;flex-wrap:wrap;gap:10px;font-size:0.8rem;}
       #ctl .ctl-streak{padding:6px 10px;border-radius:8px;background:rgba(58,166,117,0.12);}
       #ctl .ctl-note{font-size:0.74rem;opacity:0.55;}
+      #ctl .ctl-checkin{display:flex;flex-wrap:wrap;gap:8px;}
+      #ctl .ci{background:rgba(127,127,127,0.12);color:inherit;border:1px solid rgba(127,127,127,0.25);font-weight:600;}
+      #ctl .ci.on{background:rgba(58,166,117,0.25);border-color:transparent;}
     </style>
     <div id="ctl">
       <section>
@@ -78,6 +81,12 @@ window.renderControl = async function (container, sb) {
       </section>
 
       <section>
+        <h3>✅ Today's check-in</h3>
+        <p class="ctl-sub">Tick what you did today to build your streaks. (You can also tap the bot's 20:00 Discord check-in.)</p>
+        <div class="ctl-checkin" id="ctl-checkin"><span class="ctl-note">Loading…</span></div>
+      </section>
+
+      <section>
         <h3>🔥 Routine streaks</h3>
         <div class="ctl-streaks" id="ctl-streaks"><span class="ctl-note">Loading…</span></div>
       </section>
@@ -91,6 +100,7 @@ window.renderControl = async function (container, sb) {
 
   let anchors = anchRes?.data?.[0]?.value?.anchors;
   if (!Array.isArray(anchors) || !anchors.length) anchors = DEFAULTS.slice();
+  const checkinAnchors = anchors.slice();  // stable snapshot for the check-in
 
   const host = document.getElementById("ctl-anchors");
   function syncFromDom() {
@@ -162,6 +172,35 @@ window.renderControl = async function (container, sb) {
     tmsg.hidden = false;
     tmsg.textContent = ok ? "Saved. New times take effect from the next cycle." : "Couldn't queue that. Try again.";
   });
+
+  // Today's check-in — feeds the same history/streaks as the Discord check-in.
+  const hist = (adhRes?.data?.[0]?.value?.history) || {};
+  const ciToday = new Date().toISOString().split("T")[0];
+  const pyWd = (new Date().getDay() + 6) % 7;  // JS Sun=0 -> Python Mon=0
+  const MANUAL = [["water", "💧 Water"], ["screens", "🌿 No screens (wind-down)"]];
+  const todayItems = checkinAnchors
+    .filter((a) => (a.days || []).includes(pyWd))
+    .map((a) => [a.id, a.title])
+    .concat(MANUAL);
+  const ciEl = document.getElementById("ctl-checkin");
+  function renderCheckin() {
+    const done = hist[ciToday] || {};
+    ciEl.innerHTML = todayItems.length
+      ? todayItems.map(([id, label]) =>
+          `<button class="ci ${done[id] === true ? "on" : ""}" data-id="${esc(id)}">${done[id] === true ? "✓ " : ""}${esc(label)}</button>`
+        ).join("")
+      : `<span class="ctl-note">No anchors scheduled today.</span>`;
+    ciEl.querySelectorAll(".ci").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const now = !(hist[ciToday] && hist[ciToday][id] === true);
+        (hist[ciToday] = hist[ciToday] || {})[id] = now;
+        renderCheckin();
+        await window.dmicoEnqueue({ type: "routine_check", item_id: id, date: ciToday, done: now });
+      })
+    );
+  }
+  renderCheckin();
 
   const streaks = adhRes?.data?.[0]?.value?.streaks || {};
   const titleById = {};
