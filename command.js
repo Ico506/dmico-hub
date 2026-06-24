@@ -98,7 +98,7 @@ window.renderControl = async function (container, sb) {
       <section>
         <h3>✅ Today's check-in</h3>
         <p class="ctl-sub">Tick what you did today to build your streaks. (You can also tap the bot's 20:00 Discord check-in.)</p>
-        <div class="ctl-checkin" id="ctl-checkin"><span class="ctl-note">Loading…</span></div>
+        <div class="ctl-checkin" id="ctl-checkin-today"><span class="ctl-note">Loading…</span></div>
       </section>
 
       <section>
@@ -235,7 +235,7 @@ window.renderControl = async function (container, sb) {
     .filter((a) => (a.days || []).includes(pyWd))
     .map((a) => [a.id, a.title])
     .concat(MANUAL);
-  const ciEl = document.getElementById("ctl-checkin");
+  const ciEl = document.getElementById("ctl-checkin-today");
   function renderCheckin() {
     const done = hist[ciToday] || {};
     ciEl.innerHTML = todayItems.length
