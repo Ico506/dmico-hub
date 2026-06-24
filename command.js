@@ -23,8 +23,12 @@ window.renderControl = async function (container, sb) {
       #ctl section{display:flex;flex-direction:column;gap:10px;}
       #ctl h3{margin:0;font-size:0.98rem;font-weight:700;}
       #ctl .ctl-sub{font-size:0.78rem;opacity:0.6;margin:-4px 0 4px;}
-      #ctl .ctl-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(127,127,127,0.06);}
-      #ctl .ctl-row input[type=text],#ctl .ctl-row .a-title{flex:1;min-width:130px;}
+      #ctl .ctl-row{display:flex;flex-direction:column;gap:7px;padding:10px;border-radius:10px;background:rgba(127,127,127,0.06);}
+      #ctl .ctl-arow1{display:flex;align-items:center;gap:8px;}
+      #ctl .ctl-arow1 .a-title{flex:1;min-width:120px;}
+      #ctl .ctl-arow1 .a-rm{margin-left:auto;}
+      #ctl .ctl-arow2{display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
+      #ctl .a-dash{opacity:0.45;}
       #ctl input,#ctl select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
       #ctl .a-days{display:flex;flex-wrap:wrap;gap:6px;font-size:0.72rem;}
       #ctl .a-days label{display:inline-flex;align-items:center;gap:3px;opacity:0.85;}
@@ -150,19 +154,30 @@ window.renderControl = async function (container, sb) {
     }));
   }
   function renderAnchors() {
+    // Keep rows in time order so each anchor sits in its slot.
+    anchors.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
     host.innerHTML = anchors.map((a) => `
       <div class="ctl-row" data-id="${esc(a.id || "")}">
-        <input class="a-title" type="text" value="${esc(a.title || "")}" />
-        <input class="a-start" type="time" value="${esc(a.start || "")}" />
-        <input class="a-end" type="time" value="${esc(a.end || "")}" />
-        <span class="a-days">${DAYS.map(([lbl, d]) =>
-          `<label><input class="a-day" type="checkbox" value="${d}" ${(a.days || []).includes(d) ? "checked" : ""}/>${lbl}</label>`
-        ).join("")}</span>
-        <label class="a-mov" title="Can a ripple move this block?"><input class="a-movable" type="checkbox" ${a.movable !== false ? "checked" : ""}/>movable</label>
-        <button class="a-rm" title="Remove">✕</button>
+        <div class="ctl-arow1">
+          <input class="a-title" type="text" value="${esc(a.title || "")}" />
+          <input class="a-start" type="time" value="${esc(a.start || "")}" />
+          <span class="a-dash">–</span>
+          <input class="a-end" type="time" value="${esc(a.end || "")}" />
+          <button class="a-rm" title="Remove">✕</button>
+        </div>
+        <div class="ctl-arow2">
+          <span class="a-days">${DAYS.map(([lbl, d]) =>
+            `<label><input class="a-day" type="checkbox" value="${d}" ${(a.days || []).includes(d) ? "checked" : ""}/>${lbl}</label>`
+          ).join("")}</span>
+          <label class="a-mov" title="Can a ripple move this block?"><input class="a-movable" type="checkbox" ${a.movable !== false ? "checked" : ""}/>movable</label>
+        </div>
       </div>`).join("");
     host.querySelectorAll(".a-rm").forEach((btn, i) =>
       btn.addEventListener("click", () => { syncFromDom(); anchors.splice(i, 1); renderAnchors(); })
+    );
+    // Re-sort live when a start/end time changes.
+    host.querySelectorAll(".a-start, .a-end").forEach((inp) =>
+      inp.addEventListener("change", () => { syncFromDom(); renderAnchors(); })
     );
   }
   renderAnchors();
