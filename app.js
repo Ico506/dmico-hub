@@ -25,6 +25,8 @@ const MODULES = [
     blurb: "Your full Google Calendar week: anchors, focus, study, and play." },
   { id: "control",    label: "Control",    lit: true,
     blurb: "The cockpit: routine anchors, planning triggers, and bot settings." },
+  { id: "life",       label: "Life",       lit: true,
+    blurb: "Mood, prompt-driven journal, and reflections." },
   { id: "research",   label: "Research",   lit: true,
     blurb: "Your reference library and paper discovery live here." },
   { id: "selfstudy",  label: "Self-study", lit: true,
@@ -153,6 +155,25 @@ function renderRail() {
 // Exposed for dashboard cards to navigate between modules
 window.__openModule = function (id) { openModule(id); };
 
+/* Direct kv read/write for instant personal-data saves (mood, journal,
+   reflections, profile, countdowns). The bot reads these same keys live, so a
+   hub write is picked up with no queue lag. Read-modify-write in the caller. */
+window.dmicoKvGet = async function (key) {
+  if (!sb) return null;
+  try {
+    const res = await sb.from("kv_store").select("value").eq("key", key).limit(1);
+    return res?.data?.[0]?.value ?? null;
+  } catch (e) { console.error("kvGet threw", e); return null; }
+};
+window.dmicoKvSet = async function (key, value) {
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from("kv_store").upsert({ key, value }, { onConflict: "key" });
+    if (error) { console.error("kvSet failed", error); return false; }
+    return true;
+  } catch (e) { console.error("kvSet threw", e); return false; }
+};
+
 /* Hub-as-editor: append an edit intent to the kv 'hub_actions' queue. The bot
    drains it (~30s) and applies to Google Calendar / the library server-side,
    then refreshes the snapshot. Returns true on success. */
@@ -192,6 +213,8 @@ function openModule(id) {
     window.renderWeek(body, sb);
   } else if (id === "control" && window.renderControl) {
     window.renderControl(body, sb);
+  } else if (id === "life" && window.renderLife) {
+    window.renderLife(body, sb);
   } else if (id === "research" && window.renderResearch) {
     window.renderResearch(body, sb);
   } else if (id === "selfstudy" && window.renderSelfStudy) {

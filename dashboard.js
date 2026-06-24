@@ -38,7 +38,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile, weekCalRes, entLibRes] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile, weekCalRes, entLibRes, cdRes] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -81,6 +81,7 @@ window.renderDashboard = async function (container, sb) {
       // entertainment), snapshotted into kv since the frontend has no GCal creds.
       sb.from("kv_store").select("value").eq("key", "week_calendar").limit(1),
       sb.from("kv_store").select("value").eq("key", "entertainment_library").limit(1),
+      sb.from("kv_store").select("value").eq("key", "countdown_data").limit(1),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -188,6 +189,9 @@ window.renderDashboard = async function (container, sb) {
     try { return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
     catch (_) { return iso; }
   };
+  const cdList = (cdRes?.data?.[0]?.value?.countdowns) || [];
+  const nextCd = cdList.filter((c) => c.date >= todayISO).sort((a, b) => (a.date || "").localeCompare(b.date || ""))[0];
+  const cdDays = nextCd ? Math.ceil((new Date(nextCd.date + "T00:00:00") - new Date(new Date().setHours(0, 0, 0, 0))) / 86400000) : null;
 
   // ── Build cards ────────────────────────────────────────────
   const cards = [
@@ -210,6 +214,16 @@ window.renderDashboard = async function (container, sb) {
         ? `${backlogCount} in backlog`
         : "Add games & movies",
       tone: nextEnt ? "green" : "dim",
+    },
+    {
+      id: "control",
+      icon: "⏳",
+      label: "Countdown",
+      primary: nextCd ? clip(nextCd.event, 22) : "No countdowns",
+      secondary: nextCd
+        ? (cdDays === 0 ? "today" : cdDays === 1 ? "tomorrow" : `${cdDays} days away`)
+        : "Add one in Control",
+      tone: nextCd ? (cdDays <= 7 ? "orange" : "default") : "dim",
     },
     {
       id: "research",

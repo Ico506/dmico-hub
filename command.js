@@ -44,6 +44,11 @@ window.renderControl = async function (container, sb) {
       #ctl .ctl-checkin{display:flex;flex-wrap:wrap;gap:8px;}
       #ctl .ci{background:rgba(127,127,127,0.12);color:inherit;border:1px solid rgba(127,127,127,0.25);font-weight:600;}
       #ctl .ci.on{background:rgba(58,166,117,0.25);border-color:transparent;}
+      #ctl .ctl-flabel{display:flex;flex-direction:column;gap:4px;font-size:0.8rem;opacity:0.9;}
+      #ctl .ctl-flabel textarea{font:inherit;padding:7px 9px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;resize:vertical;}
+      #ctl .cd-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:rgba(127,127,127,0.06);margin-bottom:6px;}
+      #ctl .cd-row .cd-when{margin-left:auto;font-size:0.76rem;opacity:0.7;}
+      #ctl .cd-row .cd-del{background:transparent;color:inherit;opacity:0.5;padding:3px 8px;}
     </style>
     <div id="ctl">
       <section>
@@ -90,12 +95,37 @@ window.renderControl = async function (container, sb) {
         <h3>🔥 Routine streaks</h3>
         <div class="ctl-streaks" id="ctl-streaks"><span class="ctl-note">Loading…</span></div>
       </section>
+
+      <section>
+        <h3>⏳ Countdowns</h3>
+        <p class="ctl-sub">Deadlines and events the bot counts down to.</p>
+        <div id="ctl-countdowns"><span class="ctl-note">Loading…</span></div>
+        <div class="ctl-actions">
+          <input type="text" id="cd-event" placeholder="Event" style="flex:1;min-width:140px" />
+          <input type="date" id="cd-date" />
+          <input type="time" id="cd-time" title="optional" />
+          <button id="cd-add">Add</button>
+        </div>
+        <p class="ctl-msg" id="cd-msg" hidden></p>
+      </section>
+
+      <section>
+        <h3>🪪 Profile</h3>
+        <p class="ctl-sub">Who you are and what you're working toward. The weekly plan reads this.</p>
+        <label class="ctl-flabel">Identity<textarea id="pf-identity" rows="2"></textarea></label>
+        <label class="ctl-flabel">Focus areas<textarea id="pf-focus" rows="2"></textarea></label>
+        <label class="ctl-flabel">Values<textarea id="pf-values" rows="2"></textarea></label>
+        <div class="ctl-actions"><button id="pf-save">Save profile</button></div>
+        <p class="ctl-msg" id="pf-msg" hidden></p>
+      </section>
     </div>`;
 
-  const [anchRes, adhRes, setRes] = await Promise.all([
+  const [anchRes, adhRes, setRes, cdRes, pfRes] = await Promise.all([
     sb.from("kv_store").select("value").eq("key", "routine_anchors").limit(1),
     sb.from("kv_store").select("value").eq("key", "routine_adherence").limit(1),
     sb.from("kv_store").select("value").eq("key", "bot_settings").limit(1),
+    sb.from("kv_store").select("value").eq("key", "countdown_data").limit(1),
+    sb.from("kv_store").select("value").eq("key", "profile_data").limit(1),
   ]);
 
   let anchors = anchRes?.data?.[0]?.value?.anchors;
@@ -211,4 +241,62 @@ window.renderControl = async function (container, sb) {
     ? active.sort((a, b) => (b[1].current || 0) - (a[1].current || 0))
         .map(([id, v]) => `<span class="ctl-streak">🔥 ${esc(titleById[id] || id)}: ${v.current}d</span>`).join("")
     : `<span class="ctl-note">No active streaks yet — they start the first day you tap a check-in.</span>`;
+
+  // ── Countdowns ──────────────────────────────────────────────
+  const cdEl = document.getElementById("ctl-countdowns");
+  const cdMsg = document.getElementById("cd-msg");
+  const daysTo = (dateStr) => {
+    const d = new Date(dateStr + "T00:00:00"); const t = new Date(); t.setHours(0, 0, 0, 0);
+    return Math.ceil((d - t) / 86400000);
+  };
+  function renderCountdowns(list) {
+    const items = (list || []).slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    cdEl.innerHTML = items.length ? items.map((c, i) => {
+      const dd = daysTo(c.date);
+      const when = dd < 0 ? `${-dd}d ago` : dd === 0 ? "today" : dd === 1 ? "tomorrow" : `${dd}d`;
+      return `<div class="cd-row"><span>${esc(c.event)}</span><span class="cd-when">${esc(c.date)}${c.time ? " " + esc(c.time) : ""} · ${when}</span><button class="cd-del" data-i="${i}" title="Delete">✕</button></div>`;
+    }).join("") : `<span class="ctl-note">No countdowns yet.</span>`;
+    cdEl.querySelectorAll(".cd-del").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const target = items[+btn.dataset.i];
+        const data = (await window.dmicoKvGet("countdown_data")) || { countdowns: [] };
+        data.countdowns = (data.countdowns || []).filter((c) =>
+          !(c.event === target.event && c.date === target.date && (c.time || "") === (target.time || "")));
+        await window.dmicoKvSet("countdown_data", data);
+        renderCountdowns(data.countdowns);
+      })
+    );
+  }
+  renderCountdowns(cdRes?.data?.[0]?.value?.countdowns || []);
+  document.getElementById("cd-add").addEventListener("click", async () => {
+    const event = document.getElementById("cd-event").value.trim();
+    const date = document.getElementById("cd-date").value;
+    const time = document.getElementById("cd-time").value;
+    if (!event || !date) { cdMsg.hidden = false; cdMsg.textContent = "Need an event and a date."; return; }
+    const data = (await window.dmicoKvGet("countdown_data")) || {};
+    data.countdowns = Array.isArray(data.countdowns) ? data.countdowns : [];
+    const entry = { event, date, added: new Date().toISOString().split("T")[0] };
+    if (time) entry.time = time;
+    data.countdowns.push(entry);
+    const ok = await window.dmicoKvSet("countdown_data", data);
+    cdMsg.hidden = false; cdMsg.textContent = ok ? "Countdown added." : "Couldn't save — try again.";
+    if (ok) { document.getElementById("cd-event").value = ""; renderCountdowns(data.countdowns); }
+  });
+
+  // ── Profile ─────────────────────────────────────────────────
+  const core = (pfRes?.data?.[0]?.value?.core) || {};
+  document.getElementById("pf-identity").value = core.identity || "";
+  document.getElementById("pf-focus").value = core.focus_areas || "";
+  document.getElementById("pf-values").value = core.values || "";
+  const pfMsg = document.getElementById("pf-msg");
+  document.getElementById("pf-save").addEventListener("click", async () => {
+    const data = (await window.dmicoKvGet("profile_data")) || {};
+    data.core = data.core && typeof data.core === "object" ? data.core : {};
+    data.core.identity = document.getElementById("pf-identity").value.trim();
+    data.core.focus_areas = document.getElementById("pf-focus").value.trim();
+    data.core.values = document.getElementById("pf-values").value.trim();
+    data.setup_complete = true;
+    const ok = await window.dmicoKvSet("profile_data", data);
+    pfMsg.hidden = false; pfMsg.textContent = ok ? "Profile saved." : "Couldn't save — try again.";
+  });
 };
