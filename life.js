@@ -95,7 +95,7 @@ window.renderLife = async function (container, sb) {
         <h3>🌤️ Mood</h3>
         <p class="sub">How are you, right now? Tap one — I'll suggest one small, kind way to work with it.</p>
         <div class="moods" id="life-moods"></div>
-        <div class="row"><input type="text" id="life-mood-note" placeholder="one word or short note (optional)" maxlength="60" /></div>
+        <div class="row"><input type="text" id="life-mood-note" placeholder="one word or short note (optional)" maxlength="60" /><button id="life-mood-save">Save</button></div>
         <div class="suggestion" id="life-suggestion" hidden></div>
         <p class="sub" style="margin-top:6px">Recent trend</p>
         <div class="trend" id="life-trend"><span class="note">No entries yet.</span></div>
@@ -166,6 +166,21 @@ window.renderLife = async function (container, sb) {
       showSuggestion(chosenMood, entries);
     })
   );
+  // Explicit Save button — saves the note (and current/known mood) even when
+  // you type the note AFTER tapping an emoji.
+  document.getElementById("life-mood-save").addEventListener("click", async () => {
+    const data = (await window.dmicoKvGet("mood_data")) || { entries: [] };
+    const todayEntry = (data.entries || []).find((x) => x.date === todayISO);
+    const rating = chosenMood || (todayEntry && todayEntry.rating);
+    if (!rating) {
+      moodMsg.hidden = false;
+      moodMsg.textContent = "Tap how you're feeling first, then save your note.";
+      return;
+    }
+    const entries = await saveMood(rating);
+    showSuggestion(rating, entries);
+  });
+
   function renderTrend(entries) {
     const last = (entries || []).slice(-14);
     const tEl = document.getElementById("life-trend");
