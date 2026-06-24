@@ -38,7 +38,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile, weekCalRes] =
+  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile, weekCalRes, entLibRes] =
     await Promise.all([
       sb.from("research_papers")
         .select("title, created_at", { count: "exact" })
@@ -80,6 +80,7 @@ window.renderDashboard = async function (container, sb) {
       // Calendar vNext Item 3: the bot's resolved week (anchors + focus +
       // entertainment), snapshotted into kv since the frontend has no GCal creds.
       sb.from("kv_store").select("value").eq("key", "week_calendar").limit(1),
+      sb.from("kv_store").select("value").eq("key", "entertainment_library").limit(1),
     ]);
 
   // ── Research ───────────────────────────────────────────────
@@ -172,8 +173,44 @@ window.renderDashboard = async function (container, sb) {
   const netSavings    = totalIncomeAmt !== null ? totalIncomeAmt - monthSpend : null;
   const savingsPct    = totalIncomeAmt ? Math.round((netSavings / totalIncomeAmt) * 100) : null;
 
+  // ── Week + Entertainment signals (from the kv snapshots) ────
+  const wcal = weekCalRes?.data?.[0]?.value ?? null;
+  const wcEvents = (wcal && Array.isArray(wcal.events)) ? wcal.events : [];
+  const todaysBlocks = wcEvents.filter((e) => e.date === todayISO);
+  const entSessions = wcEvents.filter((e) => e.type === "entertainment");
+  const nextEnt = entSessions
+    .filter((e) => e.date >= todayISO)
+    .sort((a, b) => (a.date + (a.start || "")).localeCompare(b.date + (b.start || "")))[0];
+  const entLib = entLibRes?.data?.[0]?.value ?? null;
+  const backlogCount = (entLib && Array.isArray(entLib.items))
+    ? entLib.items.filter((i) => (i.status || "backlog") === "backlog").length : 0;
+  const dayShort = (iso) => {
+    try { return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
+    catch (_) { return iso; }
+  };
+
   // ── Build cards ────────────────────────────────────────────
   const cards = [
+    {
+      id: "week",
+      icon: "🗓️",
+      label: "Week",
+      primary: todaysBlocks.length ? `${todaysBlocks.length} today` : "Nothing today",
+      secondary: wcEvents.length ? `${wcEvents.length} blocks this week` : "No snapshot yet",
+      tone: todaysBlocks.length ? "default" : "dim",
+    },
+    {
+      id: "entertainment",
+      icon: "🍿",
+      label: "Entertainment",
+      primary: nextEnt
+        ? `Next: ${dayShort(nextEnt.date)} ${nextEnt.start || ""}`.trim()
+        : (entSessions.length ? "Sessions done" : "No sessions yet"),
+      secondary: backlogCount
+        ? `${backlogCount} in backlog`
+        : "Add games & movies",
+      tone: nextEnt ? "green" : "dim",
+    },
     {
       id: "research",
       icon: "📚",

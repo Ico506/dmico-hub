@@ -57,9 +57,19 @@ window.renderWeek = async function (container, sb) {
       </div>
       <div class="wk-add">
         <input id="wk-t" placeholder="New block title" maxlength="80" />
+        <select id="wk-cat" aria-label="Category">
+          <option value="focus">🎯 Focus</option>
+          <option value="study">📚 Study</option>
+          <option value="play">🎮 Play</option>
+          <option value="personal" selected>📌 Personal</option>
+        </select>
         <select id="wk-d" aria-label="Day"></select>
         <input id="wk-s" type="time" value="20:00" aria-label="Start" />
         <input id="wk-e" type="time" value="21:00" aria-label="End" />
+        <select id="wk-rec" aria-label="Repeat">
+          <option value="once" selected>One-time</option>
+          <option value="weekly">Weekly</option>
+        </select>
         <button id="wk-addbtn">Add block</button>
       </div>
       <p class="wk-msg" id="wk-msg" hidden></p>
@@ -164,12 +174,14 @@ window.renderWeek = async function (container, sb) {
       const end = document.getElementById("wk-e").value;
       if (!title || !date || !start || !end) { showMsg("Fill in a title, day, start and end."); return; }
       if (end <= start) { showMsg("End time must be after the start."); return; }
+      const category = document.getElementById("wk-cat").value;
+      const recurring = document.getElementById("wk-rec").value === "weekly";
       addBtn.disabled = true;
-      const ok = await window.dmicoEnqueue({ type: "calendar_add", title, date, start, end });
+      const ok = await window.dmicoEnqueue({ type: "calendar_add", title, date, start, end, category, recurring });
       addBtn.disabled = false;
       if (ok) {
         document.getElementById("wk-t").value = "";
-        showMsg("Added. It'll appear here within a minute as the bot applies it.");
+        showMsg(`Added${recurring ? " (weekly)" : ""}. It'll appear here within a minute as the bot applies it.`);
         setTimeout(draw, 35000);
       } else {
         showMsg("Couldn't queue that. Try again.");

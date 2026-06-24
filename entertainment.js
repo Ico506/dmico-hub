@@ -111,9 +111,11 @@ window.renderEntertainment = async function (container, sb) {
         const art = i.cover_url
           ? `<div class="ent-art" style="background-image:url('${encodeURI(i.cover_url)}')"></div>`
           : `<div class="ent-art">${icon}</div>`;
+        const planOn = i.in_plan !== false;
+        const planBtn = `<button data-act="plan" data-id="${esc(i.id)}" data-next="${planOn ? "0" : "1"}" class="${planOn ? "on" : ""}" title="Include in !funweek planning">📅 ${planOn ? "Planned" : "Skip"}</button>`;
         const ctrls = STATUSES.map(([sv, sl]) =>
           `<button data-act="status" data-id="${esc(i.id)}" data-status="${sv}" class="${(i.status || "backlog") === sv ? "on" : ""}">${sl}</button>`
-        ).join("") + `<button class="rm" data-act="remove" data-id="${esc(i.id)}" title="Remove">✕</button>`;
+        ).join("") + planBtn + `<button class="rm" data-act="remove" data-id="${esc(i.id)}" title="Remove">✕</button>`;
         return `<div class="ent-card">
             ${art}
             <div class="ent-meta">
@@ -133,6 +135,8 @@ window.renderEntertainment = async function (container, sb) {
         let ok;
         if (btn.dataset.act === "remove") {
           ok = await window.dmicoEnqueue({ type: "library_remove", item_id: id });
+        } else if (btn.dataset.act === "plan") {
+          ok = await window.dmicoEnqueue({ type: "library_plan", item_id: id, in_plan: btn.dataset.next === "1" });
         } else {
           ok = await window.dmicoEnqueue({ type: "library_status", item_id: id, status: btn.dataset.status });
         }
