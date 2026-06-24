@@ -23,6 +23,8 @@ const MODULES = [
     blurb: "Your life OS at a glance." },
   { id: "week",       label: "Week",       lit: true,
     blurb: "Your full Google Calendar week: anchors, focus, study, and play." },
+  { id: "control",    label: "Control",    lit: true,
+    blurb: "The cockpit: routine anchors, planning triggers, and bot settings." },
   { id: "research",   label: "Research",   lit: true,
     blurb: "Your reference library and paper discovery live here." },
   { id: "selfstudy",  label: "Self-study", lit: true,
@@ -188,6 +190,8 @@ function openModule(id) {
     window.renderDashboard(body, sb);
   } else if (id === "week" && window.renderWeek) {
     window.renderWeek(body, sb);
+  } else if (id === "control" && window.renderControl) {
+    window.renderControl(body, sb);
   } else if (id === "research" && window.renderResearch) {
     window.renderResearch(body, sb);
   } else if (id === "selfstudy" && window.renderSelfStudy) {
