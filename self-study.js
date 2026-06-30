@@ -298,7 +298,7 @@
     timer.remaining -= 1;
     if (timer.remaining < 0) {
       beep();
-      if (timer.phase === "focus") { timer.sessions += 1; timer.phase = "break"; timer.remaining = timer.brk * 60; }
+      if (timer.phase === "focus") { const _done = timer.work; timer.sessions += 1; timer.phase = "break"; timer.remaining = timer.brk * 60; promptFocusLog(_done); }
       else { timer.phase = "focus"; timer.remaining = timer.work * 60; }
     }
     paintTimer();
@@ -318,6 +318,51 @@
     clearInterval(timer.id); timer.id = null; timer.running = false;
     timer.work = work; timer.brk = brk; timer.phase = "focus"; timer.remaining = work * 60;
     paintTimer();
+  }
+
+  async function logFocus(minutes, note) {
+    const data = (await window.dmicoKvGet("focus_log")) || {};
+    data.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    data.sessions.push({
+      date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+      end: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      minutes, note,
+    });
+    await window.dmicoKvSet("focus_log", data);
+    renderFocusHistory();
+  }
+  function promptFocusLog(minutes) {
+    const host = el("s-log");
+    if (!host) return;  // not on the Focus tab right now
+    host.innerHTML = `
+      <div class="s-log-card">
+        <p>✅ ${minutes}-min focus block done. What did you get done?</p>
+        <input id="s-log-note" placeholder="e.g. wrote chapter 2 intro" maxlength="120" />
+        <div class="s-log-btns"><button id="s-log-save" class="r-mini">Save</button><button id="s-log-skip" class="btn-ghost r-mini">Skip</button></div>
+      </div>`;
+    const noteEl = el("s-log-note");
+    if (noteEl) noteEl.focus();
+    el("s-log-save").addEventListener("click", async () => {
+      const note = (el("s-log-note").value || "").trim();
+      if (!note) { host.innerHTML = ""; return; }  // blank -> discard, nothing logged
+      await logFocus(minutes, note);
+      host.innerHTML = `<p class="r-status">Logged ✓ Nice work.</p>`;
+      setTimeout(() => { if (el("s-log")) el("s-log").innerHTML = ""; }, 2500);
+    });
+    el("s-log-skip").addEventListener("click", () => { host.innerHTML = ""; });  // discard
+  }
+  async function renderFocusHistory() {
+    const host = el("s-fhist");
+    if (!host) return;
+    const data = (await window.dmicoKvGet("focus_log")) || {};
+    const sessions = (Array.isArray(data.sessions) ? data.sessions : []).slice().reverse().slice(0, 8);
+    const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    host.innerHTML = sessions.length
+      ? `<p class="r-status" style="margin-bottom:6px">Recent focus</p>` + sessions.map((s) =>
+          `<div class="s-fitem"><span class="s-fmeta">${esc(s.date)} ${esc(s.end || "")} · ${s.minutes}m</span><span class="s-fnote">${esc(s.note)}</span></div>`).join("")
+      : `<p class="r-status">No focus blocks logged yet. Finish one and note what you did.</p>`;
   }
 
   function renderFocus() {
@@ -340,7 +385,17 @@
           <button id="s-reset" class="btn-ghost r-btn">Reset</button>
         </div>
         <p id="s-sessions" class="r-status">${timer.sessions} focus block${timer.sessions === 1 ? "" : "s"} done</p>
-      </div>`;
+      </div>
+      <div id="s-log" class="s-log"></div>
+      <div id="s-fhist" class="s-fhist"></div>
+      <style>
+        .s-log-card{margin-top:12px;padding:12px;border-radius:10px;background:rgba(58,166,117,0.12);}
+        .s-log-card input{font:inherit;width:100%;padding:7px 9px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;box-sizing:border-box;margin:6px 0;}
+        .s-log-btns{display:flex;gap:8px;}
+        .s-fhist{margin-top:14px;}
+        .s-fitem{display:flex;flex-wrap:wrap;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(127,127,127,0.06);margin-bottom:5px;font-size:0.82rem;}
+        .s-fitem .s-fmeta{opacity:0.6;font-size:0.74rem;min-width:120px;}
+      </style>`;
 
     panel.querySelectorAll(".s-preset").forEach((b) =>
       b.addEventListener("click", () => { const p = PRESETS[+b.dataset.i]; applyRatio(p.work, p.brk); }));
@@ -352,6 +407,7 @@
     el("s-start").addEventListener("click", startPause);
     el("s-reset").addEventListener("click", reset);
     paintTimer();
+    renderFocusHistory();
   }
 
   window.renderSelfStudy = render;
