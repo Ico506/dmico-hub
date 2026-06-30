@@ -70,20 +70,76 @@
   async function renderLog() {
     const panel = el("ex-panel");
     panel.innerHTML = `
+      <style>
+        .ex-today-card{padding:9px 13px;border-radius:10px;background:rgba(91,141,239,0.10);font-size:0.86rem;margin-bottom:10px;}
+        .ex-today-card .ex-today-k{font-weight:600;opacity:0.7;margin-right:6px;}
+        .ex-today-card .ex-today-d{font-size:0.74rem;opacity:0.6;}
+        .ex-metab-card{padding:12px 14px;border-radius:10px;background:rgba(58,166,117,0.10);margin-bottom:12px;}
+        .ex-metab-row{display:flex;justify-content:space-between;font-size:0.88rem;padding:2px 0;}
+        .ex-metab-row .ex-metab-v{font-weight:700;font-variant-numeric:tabular-nums;}
+        .ex-metab-note{font-size:0.74rem;opacity:0.62;margin:8px 0 0;line-height:1.4;}
+        .ex-metab-empty{font-size:0.84rem;opacity:0.75;padding:12px 14px;border-radius:10px;background:rgba(127,127,127,0.06);margin-bottom:12px;}
+        .ex-log-period{font-size:0.68rem;opacity:0.65;border:1px solid rgba(127,127,127,0.3);border-radius:5px;padding:1px 5px;}
+      </style>
       <div class="r-form ex-addform">
         <div class="r-row2">
           <div class="r-field"><label>Weight (kg)</label><input id="ex-weight" type="number" min="0" step="0.1" placeholder="e.g. 68.5" /></div>
-          <div class="r-field"><label>Note <span class="r-label-optional">(optional)</span></label><input id="ex-note" type="text" placeholder="e.g. morning, after gym" /></div>
+          <div class="r-field"><label>Time of day</label><select id="ex-period"><option value="AM">Morning (AM)</option><option value="PM">Night (PM)</option></select></div>
         </div>
+        <div class="r-field"><label>Note <span class="r-label-optional">(optional)</span></label><input id="ex-note" type="text" placeholder="e.g. after gym" /></div>
         <button id="ex-save" class="btn-primary r-btn">Log weight</button>
         <p id="ex-status" class="r-status"></p>
       </div>
+      <div id="ex-today"></div>
+      <div id="ex-metab"></div>
       <div id="ex-chart"></div>
       <div id="ex-list" class="r-list"></div>`;
+    if (el("ex-period")) el("ex-period").value = new Date().getHours() < 14 ? "AM" : "PM";
     el("ex-save").addEventListener("click", addWeight);
-    await loadLogs();
+    await Promise.all([loadLogs(), loadProfile()]);
+    drawTodayAMPM();
+    drawMetabolism(latestWeight());
     drawChart();
     drawList();
+  }
+
+  function _todayStr() {
+    const d = new Date(), p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  function drawTodayAMPM() {
+    const wrap = el("ex-today");
+    if (!wrap) return;
+    const today = _todayStr();
+    const todays = logs.filter((l) => (l.logged_at || "").slice(0, 10) === today);
+    const am = todays.filter((l) => l.period === "AM").slice(-1)[0];
+    const pm = todays.filter((l) => l.period === "PM").slice(-1)[0];
+    if (!am && !pm) { wrap.innerHTML = ""; return; }
+    let line = `<div class="ex-today-card"><span class="ex-today-k">Today</span>`;
+    line += am ? ` AM <b>${kg(am.weight_kg)}</b>` : " AM —";
+    line += " · ";
+    line += pm ? `PM <b>${kg(pm.weight_kg)}</b>` : "PM —";
+    if (am && pm) {
+      const delta = Number(pm.weight_kg) - Number(am.weight_kg);
+      line += ` <span class="ex-today-d">(${delta >= 0 ? "+" : ""}${delta.toFixed(1)} kg, normal daily water shift)</span>`;
+    }
+    line += "</div>";
+    wrap.innerHTML = line;
+  }
+  function drawMetabolism(current) {
+    const wrap = el("ex-metab");
+    if (!wrap) return;
+    const plan = (current != null) ? computePlan(profile, current) : null;
+    if (!plan) {
+      wrap.innerHTML = `<div class="ex-metab-empty">Add your height, age, sex and activity in the <b>Goal</b> tab to see your estimated metabolism.</div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <div class="ex-metab-card">
+        <div class="ex-metab-row"><span class="ex-metab-k">BMR (at rest)</span><span class="ex-metab-v">${kcal(plan.bmr)}/day</span></div>
+        <div class="ex-metab-row"><span class="ex-metab-k">Metabolism (TDEE, with activity)</span><span class="ex-metab-v">${kcal(plan.tdee)}/day</span></div>
+        <p class="ex-metab-note">An estimate from your stats (Mifflin-St Jeor). Your weight trend is the real check: holding steady means you're eating near this, drifting means above or below. Awareness, not a number to obsess over.</p>
+      </div>`;
   }
 
   async function addWeight() {
@@ -91,11 +147,14 @@
     const w = parseFloat(el("ex-weight").value);
     if (!w || w <= 0) { status.textContent = "Enter a valid weight."; return; }
     status.textContent = "Saving…";
-    const { error } = await SB.from("weight_logs").insert({ weight_kg: w, note: el("ex-note").value.trim() || null });
+    const period = el("ex-period") ? el("ex-period").value : null;
+    const { error } = await SB.from("weight_logs").insert({ weight_kg: w, note: el("ex-note").value.trim() || null, period });
     if (error) { console.error(error); status.textContent = "Couldn't save. Try again."; return; }
     el("ex-weight").value = ""; el("ex-note").value = "";
     status.textContent = "";
     await loadLogs();
+    drawTodayAMPM();
+    drawMetabolism(latestWeight());
     drawChart();
     drawList();
     celebrateIfGoalReached(w);
@@ -159,6 +218,7 @@
       return `<div class="ex-log-row" data-id="${esc(l.id)}">
         <span class="ex-log-w">${kg(l.weight_kg)}</span>
         <span class="ex-log-d">${esc(d)}</span>
+        ${l.period ? `<span class="ex-log-period">${esc(l.period)}</span>` : ""}
         ${l.note ? `<span class="ex-log-note">${esc(l.note)}</span>` : ""}
         <button class="r-mini r-del ex-del">Remove</button>
       </div>`;
