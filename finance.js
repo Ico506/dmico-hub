@@ -102,6 +102,8 @@
             <button class="r-tab" data-tab="expenses">Expenses</button>
             <button class="r-tab" data-tab="goals">Goals</button>
             <button class="r-tab" data-tab="investments">Investments</button>
+            <button class="r-tab" data-tab="subs">Subscriptions</button>
+            <button class="r-tab" data-tab="review">Review</button>
           </div>
           <div id="fin-panel"></div>
         </div>
@@ -118,6 +120,8 @@
         if (tab === "overview") renderOverview();
         else if (tab === "expenses") renderExpenses();
         else if (tab === "investments") renderInvestments();
+        else if (tab === "subs") renderSubscriptions();
+        else if (tab === "review") renderReview();
         else renderGoals();
       })
     );
@@ -1603,6 +1607,123 @@
       <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="10" fill="var(--ink-soft)">Total</text>
       <text x="${cx}" y="${cy + 13}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">${fmtRM(total)}</text>
     </svg>`;
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  SUBSCRIPTIONS TAB (QoL Item 1) — kv finance_subscriptions
+  // ════════════════════════════════════════════════════════════
+  async function renderSubscriptions() {
+    const panel = el("fin-panel");
+    const rm = (n) => "RM " + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    panel.innerHTML = `<p class="r-status">Loading…</p>`;
+    const data = (await window.dmicoKvGet("finance_subscriptions")) || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    const monthly = (it) => it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0);
+    const committed = items.reduce((s, it) => s + monthly(it), 0);
+    panel.innerHTML = `
+      <style>
+        .subs-head{font-size:1rem;margin:4px 0 12px;}
+        .subs-head .subs-sub{font-size:0.8rem;opacity:0.6;}
+        .sub-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;background:rgba(127,127,127,0.06);margin-bottom:6px;}
+        .sub-row .sub-n{flex:1;font-weight:600;}
+        .sub-row .sub-a{font-variant-numeric:tabular-nums;}
+        .sub-row .sub-next{font-size:0.74rem;opacity:0.6;}
+        .sub-row .sub-del{background:transparent;border:none;color:inherit;opacity:0.5;cursor:pointer;}
+        .subs-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+        .subs-add input,.subs-add select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
+        .subs-add #sub-name{flex:1;min-width:130px;}
+        .subs-add button{font:inherit;font-weight:600;padding:6px 14px;border-radius:8px;border:none;background:#5b8def;color:#fff;cursor:pointer;}
+      </style>
+      <div class="subs-head">Committed monthly: <b>${rm(committed)}</b><span class="subs-sub"> · ${rm(committed * 12)}/yr locked in</span></div>
+      <div id="subs-list"></div>
+      <div class="subs-add">
+        <input id="sub-name" placeholder="Name (e.g. Claude)" maxlength="40" />
+        <input id="sub-amt" type="number" step="0.01" placeholder="Amount" style="width:110px" />
+        <select id="sub-cycle"><option value="monthly">/ month</option><option value="yearly">/ year</option></select>
+        <input id="sub-next" type="date" title="Next charge (optional)" />
+        <button id="sub-add">Add</button>
+      </div>
+      <p class="r-status" id="subs-msg" hidden></p>`;
+    const listEl = el("subs-list");
+    function renderList(its) {
+      listEl.innerHTML = its.length ? its.map((it, i) =>
+        `<div class="sub-row"><span class="sub-n">${esc(it.name)}</span><span class="sub-a">${rm(it.amount)} ${it.cycle === "yearly" ? "/yr" : "/mo"}</span>${it.next ? `<span class="sub-next">next ${esc(it.next)}</span>` : ""}<button class="sub-del" data-i="${i}" title="Remove">✕</button></div>`
+      ).join("") : `<p class="r-status">No subscriptions yet. Add the recurring ones you can't touch.</p>`;
+      listEl.querySelectorAll(".sub-del").forEach((b) => b.addEventListener("click", async () => {
+        const d = (await window.dmicoKvGet("finance_subscriptions")) || { items: [] };
+        d.items = Array.isArray(d.items) ? d.items : [];
+        d.items.splice(+b.dataset.i, 1);
+        await window.dmicoKvSet("finance_subscriptions", d);
+        renderSubscriptions();
+      }));
+    }
+    renderList(items);
+    el("sub-add").addEventListener("click", async () => {
+      const name = el("sub-name").value.trim();
+      const amt = parseFloat(el("sub-amt").value);
+      const msg = el("subs-msg");
+      if (!name || !(amt > 0)) { msg.hidden = false; msg.textContent = "Need a name and an amount."; return; }
+      const d = (await window.dmicoKvGet("finance_subscriptions")) || {};
+      d.items = Array.isArray(d.items) ? d.items : [];
+      d.items.push({ id: Date.now().toString(36), name, amount: amt, cycle: el("sub-cycle").value, next: el("sub-next").value || null });
+      const ok = await window.dmicoKvSet("finance_subscriptions", d);
+      if (ok) renderSubscriptions(); else { msg.hidden = false; msg.textContent = "Couldn't save — try again."; }
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  REVIEW TAB (QoL Item 2) — schedule cfg + latest review card
+  // ════════════════════════════════════════════════════════════
+  async function renderReview() {
+    const panel = el("fin-panel");
+    const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    panel.innerHTML = `<p class="r-status">Loading…</p>`;
+    const cfg = (await window.dmicoKvGet("finance_review_cfg")) || {};
+    const last = (await window.dmicoKvGet("finance_review_last")) || null;
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const recurring = cfg.mode === "recurring";
+    panel.innerHTML = `
+      <style>
+        .fin-review h4{margin:6px 0 8px;font-size:0.95rem;}
+        .fin-review label.rev-rec{display:flex;align-items:center;gap:8px;font-size:0.88rem;margin-bottom:10px;}
+        .fin-review .rev-when select,.fin-review .rev-when input{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
+        .fin-review .rev-actions{display:flex;gap:8px;margin-top:12px;}
+        .fin-review button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:none;background:#3aa675;color:#fff;cursor:pointer;}
+        .fin-review button.ghost{background:transparent;border:1px solid rgba(127,127,127,0.35);color:inherit;}
+        .fin-review .rev-last{font-size:0.85rem;padding:12px 14px;border-radius:10px;background:rgba(127,127,127,0.06);line-height:1.5;}
+      </style>
+      <div class="fin-review">
+        <h4>When should the review run?</h4>
+        <label class="rev-rec"><input type="checkbox" id="rev-recurring" ${recurring ? "checked" : ""}/> Recurring weekly</label>
+        <div class="rev-when">
+          <span id="rev-weekly" ${recurring ? "" : "hidden"}>
+            <select id="rev-day">${days.map((d, i) => `<option value="${i}" ${String(cfg.day) === String(i) ? "selected" : ""}>${d}</option>`).join("")}</select>
+            <input id="rev-time" type="time" value="${esc(cfg.time || "19:00")}" />
+          </span>
+          <span id="rev-once" ${recurring ? "hidden" : ""}>
+            <input id="rev-at" type="datetime-local" value="${esc(cfg.runAt || "")}" />
+          </span>
+        </div>
+        <div class="rev-actions"><button id="rev-save">Save schedule</button><button class="ghost" id="rev-run">Run now</button></div>
+        <p class="r-status" id="rev-msg" hidden></p>
+        <h4 style="margin-top:18px">Latest review</h4>
+        <div class="rev-last" id="rev-last">${last && last.text ? esc(last.text).replace(/\n/g, "<br>") : `<span class="r-status">No review yet. Set a schedule or hit Run now.</span>`}</div>
+      </div>`;
+    const recChk = el("rev-recurring");
+    recChk.addEventListener("change", () => { el("rev-weekly").hidden = !recChk.checked; el("rev-once").hidden = recChk.checked; });
+    el("rev-save").addEventListener("click", async () => {
+      const c = recChk.checked
+        ? { mode: "recurring", enabled: true, day: +el("rev-day").value, time: el("rev-time").value }
+        : { mode: "once", enabled: true, runAt: el("rev-at").value };
+      const ok = await window.dmicoKvSet("finance_review_cfg", c);
+      const m = el("rev-msg"); m.hidden = false; m.textContent = ok ? "Schedule saved." : "Couldn't save — try again.";
+    });
+    el("rev-run").addEventListener("click", async () => {
+      const ok = await window.dmicoEnqueue({ type: "run_finance_review" });
+      const m = el("rev-msg"); m.hidden = false;
+      m.textContent = ok ? "Running… it'll post in Discord and update here within a minute." : "Couldn't queue — try again.";
+    });
   }
 
   window.renderFinance = render;
