@@ -29,6 +29,8 @@ const MODULES = [
     blurb: "Mood, prompt-driven journal, and reflections." },
   { id: "research",   label: "Research",   lit: true,
     blurb: "Your reference library and paper discovery live here." },
+  { id: "curators",   label: "Curators",   lit: true,
+    blurb: "Proactive, taste-tuned digests. The Content Scout finds what fits you." },
   { id: "selfstudy",  label: "Self-study", lit: true,
     blurb: "Track exams with a live countdown and run focus sessions." },
   { id: "hygiene",    label: "Hygiene",    lit: true,
@@ -271,6 +273,8 @@ function openModule(id) {
     window.renderLife(body, sb);
   } else if (id === "research" && window.renderResearch) {
     window.renderResearch(body, sb);
+  } else if (id === "curators" && window.renderCurators) {
+    window.renderCurators(body, sb);
   } else if (id === "selfstudy" && window.renderSelfStudy) {
     window.renderSelfStudy(body, sb);
   } else if (id === "hygiene" && window.renderHygiene) {
