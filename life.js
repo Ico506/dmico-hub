@@ -94,6 +94,9 @@ window.renderLife = async function (container, sb) {
       #life .hist-item{padding:8px 12px;border-radius:10px;background:rgba(127,127,127,0.06);font-size:0.82rem;}
       #life .hist-date{font-size:0.72rem;opacity:0.55;margin-bottom:3px;}
       #life .note{font-size:0.74rem;opacity:0.5;}
+      #life .life-hist-d{border-radius:10px;background:rgba(127,127,127,0.04);padding:8px 12px;}
+      #life .life-hist-d summary{cursor:pointer;font-size:0.85rem;font-weight:600;opacity:0.85;}
+      #life .life-hist-d[open] summary{margin-bottom:6px;}
     </style>
     <div id="life">
       <section>
@@ -106,15 +109,19 @@ window.renderLife = async function (container, sb) {
       <section>
         <h3>📓 Journal</h3>
         <div id="life-journal-top"></div>
-        <p class="sub" style="margin-top:8px">Past entries</p>
-        <div class="hist" id="life-j-hist"><span class="note">Loading…</span></div>
       </section>
 
       <section>
         <h3>🌙 Reflection</h3>
         <div id="life-reflect-top"></div>
-        <p class="sub" style="margin-top:8px">Past reflections</p>
-        <div class="hist" id="life-r-hist"><span class="note">Loading…</span></div>
+      </section>
+
+      <section>
+        <h3>🗂️ History</h3>
+        <details class="life-hist-d"><summary>Past journal entries</summary>
+          <div class="hist" id="life-j-hist" style="margin-top:8px"><span class="note">Loading…</span></div></details>
+        <details class="life-hist-d"><summary>Past reflections</summary>
+          <div class="hist" id="life-r-hist" style="margin-top:8px"><span class="note">Loading…</span></div></details>
       </section>
     </div>`;
 

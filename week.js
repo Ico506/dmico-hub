@@ -26,6 +26,8 @@ window.renderWeek = async function (container, sb) {
       #week .wk-top{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;}
       #week .wk-range{font-size:1.05rem;font-weight:700;}
       #week .wk-updated{font-size:0.74rem;opacity:0.55;}
+      #week .wk-tog{font:inherit;font-size:0.74rem;font-weight:600;padding:4px 10px;border-radius:7px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;cursor:pointer;opacity:0.75;}
+      #week .wk-tog.on{background:rgba(91,141,239,0.2);border-color:transparent;opacity:1;}
       #week .wk-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-radius:12px;background:rgba(127,127,127,0.06);}
       #week .wk-add input,#week .wk-add select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
       #week .wk-add input#wk-t{flex:1;min-width:150px;}
@@ -53,7 +55,11 @@ window.renderWeek = async function (container, sb) {
     <div id="week">
       <div class="wk-top">
         <span class="wk-range" id="wk-range">Your week</span>
-        <span class="wk-updated" id="wk-updated"></span>
+        <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <button class="wk-tog on" data-src="week_calendar">This week</button>
+          <button class="wk-tog" data-src="week_calendar_next">Next week</button>
+          <span class="wk-updated" id="wk-updated"></span>
+        </span>
       </div>
       <div class="wk-add">
         <input id="wk-t" placeholder="New block title" maxlength="80" />
@@ -83,9 +89,10 @@ window.renderWeek = async function (container, sb) {
   const showMsg = (text) => { if (msgEl) { msgEl.textContent = text; msgEl.hidden = false; } };
 
   let weekMonday = todayISO;
+  let sourceKey = "week_calendar";
 
   async function draw() {
-    const res = await sb.from("kv_store").select("value").eq("key", "week_calendar").limit(1);
+    const res = await sb.from("kv_store").select("value").eq("key", sourceKey).limit(1);
     const wc = res?.data?.[0]?.value ?? null;
     const body = document.getElementById("wk-body");
     if (!wc || !Array.isArray(wc.events)) {
@@ -191,6 +198,14 @@ window.renderWeek = async function (container, sb) {
   }
 
   await draw();
+
+  container.querySelectorAll(".wk-tog").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      sourceKey = btn.dataset.src;
+      container.querySelectorAll(".wk-tog").forEach((b) => b.classList.toggle("on", b === btn));
+      await draw();
+    })
+  );
 
   if (window.dmicoRippleWidget) {
     try { await window.dmicoRippleWidget(document.getElementById("wk-ripple"), sb); }
