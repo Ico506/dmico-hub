@@ -63,6 +63,14 @@ function showApp(session) {
   el("greeting").textContent = greeting(session);
   renderRail();
   openModule("dashboard");
+  // NFC tap-action: a tag opens the hub with #do=<action>. Dispatch then clear
+  // the hash so a refresh doesn't re-fire it. (QoL Item 8)
+  const m = (location.hash || "").match(/do=([a-z0-9_:]+)/i);
+  if (m) {
+    const act = m[1];
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    setTimeout(() => { try { window.dmicoHandleNfc(act); } catch (e) { console.error("nfc", e); } }, 380);
+  }
 }
 
 function greeting(session) {
@@ -154,6 +162,52 @@ function renderRail() {
 
 // Exposed for dashboard cards to navigate between modules
 window.__openModule = function (id) { openModule(id); };
+
+/* NFC tap-actions: an NFC tag opens the hub with #do=<action>; this dispatches
+   it to the right place. Each follow-up is best-effort and guarded, so a missing
+   element just leaves you on the opened tab. (QoL Item 8) */
+window.dmicoHandleNfc = function (action) {
+  if (!action) return;
+  const after = (fn, ms) => setTimeout(() => { try { fn(); } catch (e) { console.error("nfc step", e); } }, ms || 500);
+  const click = (sel) => { const n = document.querySelector(sel); if (n) n.click(); };
+  const focusEl = (sel) => { const n = document.querySelector(sel); if (n && n.focus) n.focus(); };
+  const scrollTo = (sel) => { const n = document.querySelector(sel); if (n && n.scrollIntoView) n.scrollIntoView({ behavior: "smooth", block: "center" }); };
+
+  if (action.indexOf("tab:") === 0) { openModule(action.slice(4)); return; }
+
+  switch (action) {
+    case "focus":
+      openModule("selfstudy");
+      after(() => { click('.r-tab[data-tab="focus"]'); after(() => click("#s-start"), 300); });
+      break;
+    case "weighin":
+      openModule("exercise");
+      after(() => focusEl("#ex-weight"));
+      break;
+    case "mood":
+      openModule("life");
+      after(() => scrollTo("#life-mood"));
+      break;
+    case "reflect":
+      openModule("life");
+      after(() => scrollTo("#life-reflect-top"));
+      break;
+    case "expense":
+      openModule("finance");
+      after(() => click('.r-tab[data-tab="expenses"]'));
+      break;
+    case "ripple":
+      openModule("week");
+      after(() => { const d = document.querySelector(".wk-ripple-wrap"); if (d) { d.open = true; if (d.scrollIntoView) d.scrollIntoView({ behavior: "smooth", block: "center" }); } });
+      break;
+    case "workout":
+      openModule("control");
+      after(() => scrollTo("#ctl-checkin-today"));
+      break;
+    default:
+      openModule("dashboard");
+  }
+};
 
 /* Direct kv read/write for instant personal-data saves (mood, journal,
    reflections, profile, countdowns). The bot reads these same keys live, so a
