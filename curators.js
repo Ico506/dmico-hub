@@ -78,14 +78,30 @@
       use_arxiv: true,
       use_crossref: true,
     },
+    markets: {
+      topics: ["my crypto holdings", "my watchlist tickers", "macro that moves markets"],
+      likes: "Concrete market-moving news on assets I track: earnings, product/regulatory events, macro (rates, inflation), clear crypto catalysts.",
+      dislikes: "Hype, 'to the moon' noise, pump-and-dump chatter, thin rumor pieces, paid promotions, generic 'top 10 coins to buy' listicles.",
+      liked: [], disliked: [],
+      time: "07:30",
+      youtube: [],
+      stocks: [],
+      indices: [
+        { symbol: "^GSPC", name: "S&P 500" },
+        { symbol: "^IXIC", name: "Nasdaq" },
+        { symbol: "^KLSE", name: "KLCI" },
+      ],
+      news_themes: ["stock market", "cryptocurrency market", "Bursa Malaysia", "Federal Reserve interest rates"],
+    },
   };
 
   const META = {
     content: { label: "Content", emoji: "🛰️", scoutWord: "Scout", channelNote: "content channel" },
     research: { label: "Research", emoji: "🔬", scoutWord: "Scout", channelNote: "research channel" },
+    markets: { label: "Markets", emoji: "📈", scoutWord: "Refresh", channelNote: "markets channel" },
   };
 
-  const DOMAIN_ORDER = ["content", "research"];
+  const DOMAIN_ORDER = ["content", "research", "markets"];
 
   // ── helpers ────────────────────────────────────────────────
   const esc = (s) =>
@@ -143,6 +159,7 @@
         border:1px solid rgba(128,128,128,.35);}
       .cur-chip.up{background:rgba(70,170,110,.16);}
       .cur-chip.down{background:rgba(200,90,90,.16);}
+      .cur-snaprows{font-size:.92rem;line-height:1.55;margin:.2rem 0 .5rem;}
     `;
     document.head.appendChild(s);
   }
@@ -215,17 +232,69 @@
 
     const list = document.getElementById("cur-digest");
     const digest = await getDigest();
-    if (!digest || !(digest.items || []).length) {
+    const hasSnap = digest && digest.snapshot;
+    const hasItems = digest && (digest.items || []).length;
+    if (!hasSnap && !hasItems) {
       list.innerHTML = `<div class="r-card"><p class="r-abstract">No digest yet. Hit “${esc(m.scoutWord)} now”, or wait for the morning run. Quiet days mean nothing cleared the taste bar, which is fine.</p></div>`;
       return;
     }
 
-    const head = document.createElement("p");
-    head.className = "r-status";
-    head.textContent = `${digest.items.length} pick(s) · ${digest.ts || digest.date || ""}`;
-    list.appendChild(head);
+    if (hasSnap) list.appendChild(snapshotCard(digest));
 
-    digest.items.forEach((it) => list.appendChild(digestCard(it)));
+    if (hasItems) {
+      const head = document.createElement("p");
+      head.className = "r-status";
+      head.textContent = `${digest.items.length} news pick(s) · ${digest.ts || digest.date || ""}`;
+      list.appendChild(head);
+      digest.items.forEach((it) => list.appendChild(digestCard(it)));
+    } else if (hasSnap) {
+      const note = document.createElement("p");
+      note.className = "r-status";
+      note.textContent = "No market news cleared the bar this run. Quiet is fine.";
+      list.appendChild(note);
+    }
+  }
+
+  // Markets snapshot card (portfolio numbers). Track + inform only.
+  function snapshotCard(digest) {
+    const s = digest.snapshot || {};
+    const card = document.createElement("div");
+    card.className = "r-card";
+    const pct = (v) => `${v >= 0 ? "+" : ""}${Number(v).toFixed(1)}%`;
+    const dot = (v) => (v >= 0 ? "🟢" : "🔴");
+    let html = `<h3 class="r-title">📈 Portfolio snapshot</h3>
+      <div class="r-meta">${esc(digest.snapshot_ts || digest.date || "")}</div>`;
+
+    if ((s.crypto || []).length) {
+      html += `<p class="cur-label">Crypto holdings</p><div class="cur-snaprows">`;
+      s.crypto.forEach((c) => {
+        html += `<div>• ${esc(c.coin)} · RM${Number(c.value_myr).toLocaleString()} ${dot(c.pl_pct)} ${pct(c.pl_pct)}</div>`;
+      });
+      if (s.crypto_total) {
+        html += `<div class="r-meta">Total RM${Number(s.crypto_total.value_myr).toLocaleString()} (${pct(s.crypto_total.pl_pct)} vs RM${Number(s.crypto_total.paid_myr).toLocaleString()} paid)</div>`;
+      }
+      html += `</div>`;
+    }
+    if ((s.stocks || []).length) {
+      html += `<p class="cur-label">Stocks / ETFs</p><div class="cur-snaprows">`;
+      s.stocks.forEach((st) => {
+        html += `<div>• ${esc(st.symbol)} ${Number(st.price).toLocaleString()} ${esc(st.currency || "")} ${dot(st.day_pct)} ${pct(st.day_pct)}</div>`;
+      });
+      html += `</div>`;
+    }
+    if ((s.indices || []).length) {
+      html += `<p class="cur-label">Index context</p><div class="cur-snaprows">`;
+      s.indices.forEach((ix) => {
+        html += `<div>• ${esc(ix.name)} ${Number(ix.level).toLocaleString()} ${dot(ix.day_pct)} ${pct(ix.day_pct)}</div>`;
+      });
+      html += `</div>`;
+    }
+    if (s.grand_total_myr) {
+      html += `<div class="r-meta" style="margin-top:.5rem;">Tracked value ≈ RM${Number(s.grand_total_myr).toLocaleString()} (crypto + any held stocks)</div>`;
+    }
+    html += `<p class="r-meta" style="margin-top:.5rem;font-style:italic;">Informational only, not financial advice. You decide and act.</p>`;
+    card.innerHTML = html;
+    return card;
   }
 
   function digestCard(it) {
@@ -272,6 +341,23 @@
   // Each domain's "Sources" card differs; the rest (topics/likes/dislikes,
   // schedule, learned signals, save) is shared.
   function sourcesCardHtml(p) {
+    if (currentDomain === "markets") {
+      const stocksText = (p.stocks || []).map((s) =>
+        (typeof s === "string" ? s : (s.qty != null ? `${s.symbol} | ${s.qty}` : s.symbol))).join("\n");
+      const idxText = (p.indices || []).map((i) =>
+        (typeof i === "string" ? i : `${i.symbol} | ${i.name || ""}`)).join("\n");
+      return `
+        <div class="r-card">
+          <h3 class="r-title">Watchlist</h3>
+          <label class="cur-label">Stocks / ETFs <span class="r-meta">(one per line: TICKER, or "TICKER | qty" to value the holding in MYR)</span></label>
+          <textarea id="cur-stocks" class="cur-area" rows="3" placeholder="NVDA&#10;VOO | 10">${esc(stocksText)}</textarea>
+          <label class="cur-label">Indices <span class="r-meta">(one per line: SYMBOL | name, e.g. ^GSPC | S&P 500)</span></label>
+          <textarea id="cur-indices" class="cur-area" rows="3">${esc(idxText)}</textarea>
+          <label class="cur-label">News themes <span class="r-meta">(comma separated)</span></label>
+          <textarea id="cur-themes" class="cur-area" rows="2">${esc((p.news_themes || []).join(", "))}</textarea>
+          <p class="r-meta">Crypto is pulled live from your <code>!crypto</code> holdings, nothing to add here. Informational only, not advice.</p>
+        </div>`;
+    }
     if (currentDomain === "research") {
       return `
         <div class="r-card">
@@ -304,6 +390,20 @@
   }
 
   function collectSources(prof) {
+    if (currentDomain === "markets") {
+      prof.stocks = lines(document.getElementById("cur-stocks").value).map((ln) => {
+        const [sym, qty] = ln.split("|").map((x) => x.trim());
+        if (qty && !isNaN(parseFloat(qty))) return { symbol: sym.toUpperCase(), qty: parseFloat(qty) };
+        return sym.toUpperCase();
+      }).filter((s) => (typeof s === "string" ? s : s.symbol));
+      prof.indices = lines(document.getElementById("cur-indices").value).map((ln) => {
+        const [sym, name] = ln.split("|").map((x) => x.trim());
+        return { symbol: sym, name: name || sym };
+      }).filter((i) => i.symbol);
+      prof.news_themes = commas(document.getElementById("cur-themes").value);
+      prof.sources = (prof.stocks || []).map((s) => (typeof s === "string" ? s : s.symbol));
+      return;
+    }
     if (currentDomain === "research") {
       prof.arxiv_cats = commas(document.getElementById("cur-arxiv-cats").value);
       prof.arxiv_terms = commas(document.getElementById("cur-arxiv-terms").value);
