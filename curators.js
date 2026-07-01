@@ -1,49 +1,91 @@
 /* ─────────────────────────────────────────────────────────────
-   dmico life os — Curators module (v1)
-   The hub face of the bot's proactive curator agents. Phase 1 is the
-   Content Scout: a daily, taste-filtered digest of game-dev / indie /
-   design items, delivered to Discord and mirrored here.
+   dmico life os — Curators module (v2, multi-domain)
+   The hub face of the bot's proactive curator agents. A small domain
+   switcher at the top flips between curators; each reads/writes its own
+   kv slice (curator_profiles[domain] / curator_digest[domain]), so they
+   never step on each other.
 
-   - Digest tab: the latest picks (from kv curator_digest.content), with
-     👍/👎 that teach the same taste profile the bot uses, plus a
-     "Scout now" button that queues an on-demand run (kv hub_actions →
-     the bot runs it within ~30s and posts to Discord).
-   - Taste tab: edit the profile the bot curates against — topics, likes,
-     dislikes, sources (subreddits / HN queries / RSS / YouTube channels),
-     arXiv toggle, and the daily digest time. Saved to kv
-     curator_profiles.content, which the bot reads live.
+   - Content Scout (Phase 1): daily, taste-filtered digest of game-dev /
+     indie / design items. Sources: subreddits, HN queries, RSS, YouTube,
+     arXiv.
+   - Research Scout (Phase 3): daily, taste-filtered digest of fresh papers
+     in the AR/VR + game-studies niche. Sources: arXiv (categories + term
+     queries) and Crossref queries.
+
+   Each domain has two tabs:
+   - Digest: the latest picks (kv curator_digest[domain]), with 👍/👎 that
+     teach the same taste profile the bot uses, plus a "Scout now" button
+     that queues an on-demand run (kv hub_actions → the bot runs it within
+     ~30s and posts to Discord).
+   - Taste: edit the profile the bot curates against — topics, likes,
+     dislikes, the domain's own sources, and the daily digest time. Saved
+     to kv curator_profiles[domain], which the bot reads live.
 
    All state is kv (no schema change). The bot seeds the default profile on
-   its first run; this module falls back to a sensible default so the editor
-   is never empty before then.
+   its first run; this module falls back to a sensible default per domain so
+   the editor is never empty before then.
    ───────────────────────────────────────────────────────────── */
 
 (function () {
   let SB = null;
   let root = null;
-  const DOMAIN = "content";
+  let currentDomain = "content";
+  let currentTab = "digest";
 
-  // Mirror of content_curator.DEFAULT_PROFILE, used only until the bot seeds
-  // the real one in kv. Kept intentionally small.
-  const FALLBACK_PROFILE = {
-    topics: [
-      "indie game design", "game feel and juice", "solo / small-team dev",
-      "AR/VR and immersive design", "narrative and systems design",
-      "Unity / C# techniques", "DMICO brand + audience growth",
-    ],
-    likes: "Concrete, craft-level posts I can learn from: design breakdowns, postmortems, clever mechanics, tools, AR/VR research with game relevance.",
-    dislikes: "Pure self-promo with no insight, crypto/NFT hype, engine flame wars, low-effort memes, generic 'I want to make a game' questions.",
-    liked: [], disliked: [],
-    time: "08:00",
-    youtube: [],
-    subreddits: ["gamedev", "IndieDev", "gamedesign"],
-    hn_queries: ["game development", "indie game", "game design"],
-    rss: [
-      { url: "https://www.gamedeveloper.com/rss.xml", source: "Game Developer" },
-      { url: "https://itch.io/games/newest.xml", source: "itch.io" },
-    ],
-    use_arxiv: true,
+  // ── per-domain fallback profiles (mirror the *_curator.DEFAULT_PROFILEs,
+  //    used only until the bot seeds the real one in kv) ──────────────────
+  const FALLBACKS = {
+    content: {
+      topics: [
+        "indie game design", "game feel and juice", "solo / small-team dev",
+        "AR/VR and immersive design", "narrative and systems design",
+        "Unity / C# techniques", "DMICO brand + audience growth",
+      ],
+      likes: "Concrete, craft-level posts I can learn from: design breakdowns, postmortems, clever mechanics, tools, AR/VR research with game relevance.",
+      dislikes: "Pure self-promo with no insight, crypto/NFT hype, engine flame wars, low-effort memes, generic 'I want to make a game' questions.",
+      liked: [], disliked: [],
+      time: "08:00",
+      youtube: [],
+      subreddits: ["gamedev", "IndieDev", "gamedesign"],
+      hn_queries: ["game development", "indie game", "game design"],
+      rss: [
+        { url: "https://www.gamedeveloper.com/rss.xml", source: "Game Developer" },
+        { url: "https://itch.io/games/newest.xml", source: "itch.io" },
+      ],
+      use_arxiv: true,
+    },
+    research: {
+      topics: [
+        "AR/VR and immersive design", "presence and embodiment",
+        "player experience", "game studies and design research",
+        "HCI for games", "serious and applied games", "spatial interaction",
+      ],
+      likes: "Empirical studies, novel interaction techniques, strong methods, and work I can cite in my thesis: AR/VR design transfer to games, presence/embodiment measures, player-experience research, game-studies framings with real design implications.",
+      dislikes: "Pure hardware spec papers, unrelated ML benchmarks, non-game VR with no design transfer, predatory-venue noise, thin position papers with no study behind them.",
+      liked: [], disliked: [],
+      time: "07:00",
+      youtube: [],
+      arxiv_cats: ["cs.HC", "cs.GR"],
+      arxiv_terms: [
+        "virtual reality", "augmented reality", "mixed reality",
+        "game", "player experience", "presence",
+      ],
+      crossref_queries: [
+        "virtual reality game", "augmented reality interaction",
+        "presence immersion game", "game studies",
+        "player experience HCI", "embodiment virtual reality",
+      ],
+      use_arxiv: true,
+      use_crossref: true,
+    },
   };
+
+  const META = {
+    content: { label: "Content", emoji: "🛰️", scoutWord: "Scout", channelNote: "content channel" },
+    research: { label: "Research", emoji: "🔬", scoutWord: "Scout", channelNote: "research channel" },
+  };
+
+  const DOMAIN_ORDER = ["content", "research"];
 
   // ── helpers ────────────────────────────────────────────────
   const esc = (s) =>
@@ -54,24 +96,28 @@
   const lines = (s) => String(s || "").split("\n").map((x) => x.trim()).filter(Boolean);
   const commas = (s) => String(s || "").split(",").map((x) => x.trim()).filter(Boolean);
 
+  function fallback() {
+    return FALLBACKS[currentDomain] || FALLBACKS.content;
+  }
+
   async function getProfile() {
     const blob = (await window.dmicoKvGet("curator_profiles")) || {};
-    const p = (blob && blob[DOMAIN]) || {};
-    // Merge over the fallback so every field exists.
-    return Object.assign({}, FALLBACK_PROFILE, p, {
+    const p = (blob && blob[currentDomain]) || {};
+    // Merge over the per-domain fallback so every field exists.
+    return Object.assign({}, fallback(), p, {
       liked: p.liked || [], disliked: p.disliked || [],
     });
   }
 
   async function saveProfile(prof) {
     const blob = (await window.dmicoKvGet("curator_profiles")) || {};
-    blob[DOMAIN] = prof;
+    blob[currentDomain] = prof;
     return window.dmicoKvSet("curator_profiles", blob);
   }
 
   async function getDigest() {
     const blob = (await window.dmicoKvGet("curator_digest")) || {};
-    return (blob && blob[DOMAIN]) || null;
+    return (blob && blob[currentDomain]) || null;
   }
 
   // ── layout ─────────────────────────────────────────────────
@@ -80,6 +126,11 @@
     const s = document.createElement("style");
     s.id = "cur-styles";
     s.textContent = `
+      .cur-domains{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;}
+      .cur-domain{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .8rem;
+        border-radius:1rem;border:1px solid rgba(128,128,128,.35);background:rgba(128,128,128,.06);
+        color:inherit;font:inherit;font-size:.92rem;cursor:pointer;}
+      .cur-domain.current{background:rgba(120,150,210,.18);border-color:rgba(120,150,210,.55);font-weight:600;}
       .cur-label{display:block;margin:.7rem 0 .3rem;font-weight:600;font-size:.92rem;}
       .cur-area,.cur-input{width:100%;box-sizing:border-box;font:inherit;
         padding:.5rem .6rem;border:1px solid rgba(128,128,128,.35);border-radius:.5rem;
@@ -100,22 +151,42 @@
     SB = sb;
     root = container;
     injectStyles();
+
+    const switcher = DOMAIN_ORDER.map((d) =>
+      `<button class="cur-domain ${d === currentDomain ? "current" : ""}" data-domain="${d}">${META[d].emoji} ${esc(META[d].label)}</button>`
+    ).join("");
+
     root.innerHTML = `
+      <div class="cur-domains" role="tablist">${switcher}</div>
       <div class="r-tabs" role="tablist">
         <button class="r-tab current" data-tab="digest">Latest digest</button>
         <button class="r-tab" data-tab="taste">Taste profile</button>
       </div>
       <div id="cur-panel"></div>`;
+
+    root.querySelectorAll(".cur-domain").forEach((b) =>
+      b.addEventListener("click", () => {
+        if (b.dataset.domain === currentDomain) return;
+        currentDomain = b.dataset.domain;
+        render(container, sb); // re-render the whole module for the new domain
+      })
+    );
+
     root.querySelectorAll(".r-tab").forEach((t) =>
       t.addEventListener("click", () => {
         root.querySelectorAll(".r-tab").forEach((x) => x.classList.toggle("current", x === t));
         openTab(t.dataset.tab);
       })
     );
-    openTab("digest");
+
+    // Preserve the active tab across a domain switch.
+    root.querySelectorAll(".r-tab").forEach((x) =>
+      x.classList.toggle("current", x.dataset.tab === currentTab));
+    openTab(currentTab);
   }
 
   function openTab(tab) {
+    currentTab = tab;
     const panel = document.getElementById("cur-panel");
     if (tab === "digest") return renderDigest(panel);
     if (tab === "taste") return renderTaste(panel);
@@ -123,12 +194,13 @@
 
   // ── Digest tab ─────────────────────────────────────────────
   async function renderDigest(panel) {
+    const m = META[currentDomain];
     panel.innerHTML = `
       <div class="r-searchbar">
-        <button id="cur-scout" class="btn-primary r-btn">🛰️ Scout now</button>
+        <button id="cur-scout" class="btn-primary r-btn">${m.emoji} ${esc(m.scoutWord)} now</button>
         <span id="cur-scout-msg" class="r-status"></span>
       </div>
-      <p class="r-status">The bot posts this to your content channel each morning. 👍/👎 here or in Discord teaches the same profile.</p>
+      <p class="r-status">The bot posts this to your ${esc(m.channelNote)} each morning. 👍/👎 here or in Discord teaches the same profile.</p>
       <div id="cur-digest" class="r-list"></div>`;
 
     const btn = document.getElementById("cur-scout");
@@ -136,7 +208,7 @@
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       msg.textContent = "Queued — the bot runs it within ~30s and posts to Discord.";
-      const ok = await window.dmicoEnqueue({ type: "run_curator", domain: DOMAIN });
+      const ok = await window.dmicoEnqueue({ type: "run_curator", domain: currentDomain });
       if (!ok) msg.textContent = "Couldn't queue the run. Check the connection and try again.";
       setTimeout(() => { btn.disabled = false; }, 4000);
     });
@@ -144,7 +216,7 @@
     const list = document.getElementById("cur-digest");
     const digest = await getDigest();
     if (!digest || !(digest.items || []).length) {
-      list.innerHTML = `<div class="r-card"><p class="r-abstract">No digest yet. Hit “Scout now”, or wait for the morning run. Quiet days mean nothing cleared the taste bar, which is fine.</p></div>`;
+      list.innerHTML = `<div class="r-card"><p class="r-abstract">No digest yet. Hit “${esc(m.scoutWord)} now”, or wait for the morning run. Quiet days mean nothing cleared the taste bar, which is fine.</p></div>`;
       return;
     }
 
@@ -197,9 +269,64 @@
   }
 
   // ── Taste tab ──────────────────────────────────────────────
+  // Each domain's "Sources" card differs; the rest (topics/likes/dislikes,
+  // schedule, learned signals, save) is shared.
+  function sourcesCardHtml(p) {
+    if (currentDomain === "research") {
+      return `
+        <div class="r-card">
+          <h3 class="r-title">Sources</h3>
+          <label class="cur-label">arXiv categories <span class="r-meta">(comma separated, e.g. cs.HC, cs.GR)</span></label>
+          <textarea id="cur-arxiv-cats" class="cur-area" rows="2">${esc((p.arxiv_cats || []).join(", "))}</textarea>
+          <label class="cur-label">arXiv term queries <span class="r-meta">(comma separated free-text terms)</span></label>
+          <textarea id="cur-arxiv-terms" class="cur-area" rows="2">${esc((p.arxiv_terms || []).join(", "))}</textarea>
+          <label class="cur-label">Crossref queries <span class="r-meta">(comma separated)</span></label>
+          <textarea id="cur-crossref" class="cur-area" rows="3">${esc((p.crossref_queries || []).join(", "))}</textarea>
+          <label class="cur-check"><input type="checkbox" id="cur-use-arxiv" ${p.use_arxiv ? "checked" : ""}/> Include arXiv</label>
+          <label class="cur-check"><input type="checkbox" id="cur-use-crossref" ${p.use_crossref ? "checked" : ""}/> Include Crossref</label>
+        </div>`;
+    }
+    // content (default)
+    const rssText = (p.rss || []).map((r) => `${r.url} | ${r.source || ""}`).join("\n");
+    return `
+      <div class="r-card">
+        <h3 class="r-title">Sources</h3>
+        <label class="cur-label">Subreddits <span class="r-meta">(comma separated, no r/)</span></label>
+        <textarea id="cur-subs" class="cur-area" rows="2">${esc((p.subreddits || []).join(", "))}</textarea>
+        <label class="cur-label">Hacker News queries <span class="r-meta">(comma separated)</span></label>
+        <textarea id="cur-hn" class="cur-area" rows="2">${esc((p.hn_queries || []).join(", "))}</textarea>
+        <label class="cur-label">RSS / Atom feeds <span class="r-meta">(one per line: url | label)</span></label>
+        <textarea id="cur-rss" class="cur-area" rows="3">${esc(rssText)}</textarea>
+        <label class="cur-label">YouTube channel IDs <span class="r-meta">(one per line, e.g. UCxxxx — find it in a channel's page source / About)</span></label>
+        <textarea id="cur-yt" class="cur-area" rows="2">${esc((p.youtube || []).join("\n"))}</textarea>
+        <label class="cur-check"><input type="checkbox" id="cur-arxiv" ${p.use_arxiv ? "checked" : ""}/> Include arXiv AR/VR + games</label>
+      </div>`;
+  }
+
+  function collectSources(prof) {
+    if (currentDomain === "research") {
+      prof.arxiv_cats = commas(document.getElementById("cur-arxiv-cats").value);
+      prof.arxiv_terms = commas(document.getElementById("cur-arxiv-terms").value);
+      prof.crossref_queries = commas(document.getElementById("cur-crossref").value);
+      prof.sources = prof.arxiv_cats; // keep the display field in step
+      prof.use_arxiv = document.getElementById("cur-use-arxiv").checked;
+      prof.use_crossref = document.getElementById("cur-use-crossref").checked;
+      return;
+    }
+    // content
+    prof.subreddits = commas(document.getElementById("cur-subs").value);
+    prof.sources = prof.subreddits; // keep the display field in step
+    prof.hn_queries = commas(document.getElementById("cur-hn").value);
+    prof.rss = lines(document.getElementById("cur-rss").value).map((ln) => {
+      const [url, source] = ln.split("|").map((x) => x.trim());
+      return { url, source: source || "RSS" };
+    }).filter((r) => r.url);
+    prof.youtube = lines(document.getElementById("cur-yt").value);
+    prof.use_arxiv = document.getElementById("cur-arxiv").checked;
+  }
+
   async function renderTaste(panel) {
     const p = await getProfile();
-    const rssText = (p.rss || []).map((r) => `${r.url} | ${r.source || ""}`).join("\n");
     panel.innerHTML = `
       <div class="r-list">
         <div class="r-card">
@@ -212,18 +339,7 @@
           <textarea id="cur-dislikes" class="cur-area" rows="3">${esc(p.dislikes || "")}</textarea>
         </div>
 
-        <div class="r-card">
-          <h3 class="r-title">Sources</h3>
-          <label class="cur-label">Subreddits <span class="r-meta">(comma separated, no r/)</span></label>
-          <textarea id="cur-subs" class="cur-area" rows="2">${esc((p.subreddits || []).join(", "))}</textarea>
-          <label class="cur-label">Hacker News queries <span class="r-meta">(comma separated)</span></label>
-          <textarea id="cur-hn" class="cur-area" rows="2">${esc((p.hn_queries || []).join(", "))}</textarea>
-          <label class="cur-label">RSS / Atom feeds <span class="r-meta">(one per line: url | label)</span></label>
-          <textarea id="cur-rss" class="cur-area" rows="3">${esc(rssText)}</textarea>
-          <label class="cur-label">YouTube channel IDs <span class="r-meta">(one per line, e.g. UCxxxx — find it in a channel's page source / About)</span></label>
-          <textarea id="cur-yt" class="cur-area" rows="2">${esc((p.youtube || []).join("\n"))}</textarea>
-          <label class="cur-check"><input type="checkbox" id="cur-arxiv" ${p.use_arxiv ? "checked" : ""}/> Include arXiv AR/VR + games</label>
-        </div>
+        ${sourcesCardHtml(p)}
 
         <div class="r-card">
           <h3 class="r-title">Schedule</h3>
@@ -262,15 +378,7 @@
       prof.topics = commas(document.getElementById("cur-topics").value);
       prof.likes = document.getElementById("cur-likes").value.trim();
       prof.dislikes = document.getElementById("cur-dislikes").value.trim();
-      prof.subreddits = commas(document.getElementById("cur-subs").value);
-      prof.sources = prof.subreddits; // keep the display field in step
-      prof.hn_queries = commas(document.getElementById("cur-hn").value);
-      prof.rss = lines(document.getElementById("cur-rss").value).map((ln) => {
-        const [url, source] = ln.split("|").map((x) => x.trim());
-        return { url, source: source || "RSS" };
-      }).filter((r) => r.url);
-      prof.youtube = lines(document.getElementById("cur-yt").value);
-      prof.use_arxiv = document.getElementById("cur-arxiv").checked;
+      collectSources(prof);
       const tv = document.getElementById("cur-time").value;
       if (/^\d{2}:\d{2}$/.test(tv)) prof.time = tv;
 
