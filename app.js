@@ -53,13 +53,20 @@ const appView = el("app-view");
 
 /* ── View switching ──────────────────────────────────────────── */
 
+// Tracks whether the app shell is already rendered, so auth events that don't
+// change login state (TOKEN_REFRESHED, INITIAL_SESSION after getSession) can't
+// re-render everything and yank you back to the dashboard mid-work.
+let appShown = false;
+
 function showLogin() {
+  appShown = false;
   appView.hidden = true;
   loginView.hidden = false;
   el("password").value = "";
 }
 
 function showApp(session) {
+  appShown = true;
   loginView.hidden = true;
   appView.hidden = false;
   el("greeting").textContent = greeting(session);
@@ -436,13 +443,16 @@ if (!sb) {
   el("password").addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
   el("sign-out").addEventListener("click", signOut);
 
-  sb.auth.getSession().then(({ data }) => {
-    if (data.session) showApp(data.session);
-    else showLogin();
-  });
+  // Only rebuild the app on a real logged-out -> logged-in transition.
+  // showApp/showLogin maintain the appShown flag, so a direct signIn() call
+  // and the SIGNED_IN event that follows it can't double-render either.
+  function handleSession(session) {
+    if (session && !appShown) showApp(session);
+    else if (!session) showLogin();
+    // session && appShown -> token refresh etc.; leave the UI alone.
+  }
 
-  sb.auth.onAuthStateChange((_event, session) => {
-    if (session) showApp(session);
-    else showLogin();
-  });
+  sb.auth.getSession().then(({ data }) => handleSession(data.session));
+
+  sb.auth.onAuthStateChange((_event, session) => handleSession(session));
 }
