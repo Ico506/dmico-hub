@@ -71,7 +71,11 @@ function showApp(session) {
   appView.hidden = false;
   el("greeting").textContent = greeting(session);
   renderRail();
-  openModule("dashboard");
+  // Reopen the module you were last in, so a page reload (tab discarded in the
+  // background, phone memory eviction, F5) doesn't dump you back on Home.
+  const last = localStorage.getItem("dmico-last-module");
+  const lastOk = MODULES.some((x) => x.id === last && x.lit);
+  openModule(lastOk ? last : "dashboard");
   // NFC tap-action: a tag opens the hub with #do=<action>. Dispatch then clear
   // the hash so a refresh doesn't re-fire it. (QoL Item 8)
   const m = (location.hash || "").match(/do=([a-z0-9_:]+)/i);
@@ -263,6 +267,9 @@ window.dmicoEnqueue = async function (action) {
 function openModule(id) {
   const m = MODULES.find((x) => x.id === id);
   if (!m || !m.lit) return;
+
+  // Remember where you are so a reload can restore it.
+  try { localStorage.setItem("dmico-last-module", id); } catch (e) {}
 
   document.querySelectorAll(".lantern").forEach((n) =>
     n.classList.toggle("current", n.dataset.id === id)
