@@ -3546,3 +3546,18 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   color: var(--surface);
   font-weight: 600;
 }
+
+.g-buy-dish {
+  opacity: 0.65;
+  font-size: 0.72rem;
+}
+
+.g-buy-x {
+  border: none;
+  background: transparent;
+  color: var(--clay);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 2px;
+  margin-left: 2px;
+}

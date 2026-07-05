@@ -93,15 +93,24 @@
       ],
       news_themes: ["stock market", "cryptocurrency market", "Bursa Malaysia", "Federal Reserve interest rates"],
     },
+    kitchen: {
+      topics: ["Malaysian home cooking", "one-wok dinners", "quick weeknight meals"],
+      likes: "Established, named dishes I can actually cook on a weeknight: Malaysian and Chinese home cooking, stir-fries, soups, noodle dishes. Budget-aware picks that rescue what's already in the fridge.",
+      dislikes: "Invented fusion, precision baking, anything needing specialty equipment or ingredients I can't find in Sibu, overly fancy plating projects.",
+      liked: [], disliked: [],
+      time: "10:00",
+      youtube: [],
+    },
   };
 
   const META = {
     content: { label: "Content", emoji: "🛰️", scoutWord: "Scout", channelNote: "content channel" },
     research: { label: "Research", emoji: "🔬", scoutWord: "Scout", channelNote: "research channel" },
     markets: { label: "Markets", emoji: "📈", scoutWord: "Refresh", channelNote: "markets channel" },
+    kitchen: { label: "Kitchen", emoji: "🍳", scoutWord: "Inspire", channelNote: "scheduler channel (Saturday 10:00)" },
   };
 
-  const DOMAIN_ORDER = ["content", "research", "markets"];
+  const DOMAIN_ORDER = ["content", "research", "markets", "kitchen"];
 
   // ── helpers ────────────────────────────────────────────────
   const esc = (s) =>

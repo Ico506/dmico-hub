@@ -109,6 +109,7 @@
       `<option value="${esc(d.category)}">${esc(d.label)}</option>`).join("");
 
     panel.innerHTML = `
+      <div id="g-tobuy"></div>
       <div id="g-eatfirst"></div>
       <div class="r-form g-addform">
         <div class="r-row2">
@@ -201,8 +202,41 @@
     await drawInventory();
   }
 
+  async function drawShoppingStrip() {
+    // Phase 4: the 🛒 To-buy strip, fed by inspire-mode picks in Discord.
+    const holder = el("g-tobuy");
+    if (!holder) return;
+    const blob = (await window.dmicoKvGet("grocery_shopping_list")) || {};
+    const entries = Array.isArray(blob.items) ? blob.items : [];
+    if (!entries.length) { holder.innerHTML = ""; return; }
+    holder.innerHTML =
+      `<div class="g-eatfirst"><span class="g-eatfirst-title">🛒 To buy</span> ` +
+      entries.map((e, i) =>
+        `<span class="g-eatchip">${esc(e.name)}${e.dish ? ` <span class="g-buy-dish">(${esc(e.dish)})</span>` : ""}
+           <button class="g-buy-x" data-i="${i}" title="Remove">✕</button></span>`
+      ).join(" ") +
+      ` <button class="r-mini" id="g-buy-clear" title="Clear the whole list">clear all</button></div>`;
+    holder.querySelectorAll(".g-buy-x").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const idx = parseInt(btn.dataset.i);
+        const fresh = (await window.dmicoKvGet("grocery_shopping_list")) || {};
+        const items = Array.isArray(fresh.items) ? fresh.items : [];
+        items.splice(idx, 1);
+        await window.dmicoKvSet("grocery_shopping_list", { items });
+        await drawShoppingStrip();
+      })
+    );
+    const clearBtn = holder.querySelector("#g-buy-clear");
+    if (clearBtn) clearBtn.addEventListener("click", async () => {
+      if (!confirm("Clear the whole to-buy list?")) return;
+      await window.dmicoKvSet("grocery_shopping_list", { items: [] });
+      await drawShoppingStrip();
+    });
+  }
+
   async function drawInventory() {
     const list = el("g-list");
+    await drawShoppingStrip();
     const { data, error } = await SB.from("groceries_items")
       .select("*").order("bought_on", { ascending: true });
     if (error) { console.error(error); list.innerHTML = `<p class="r-status">Couldn't load the inventory. Has groceries.sql been run?</p>`; return; }
@@ -312,10 +346,13 @@
     const panel = el("g-panel");
     panel.innerHTML = `
       <div class="r-form g-addform">
-        <p class="g-cook-blurb">Pick a meal weight and Jade proposes 2–3 real dishes
+        <div class="g-cook-weights" id="g-mode-row">
+          <button class="r-btn g-mode g-weight-on" data-mode="kitchen">🧊 From my kitchen</button>
+          <button class="r-btn g-mode" data-mode="fresh">✨ Inspire me</button>
+        </div>
+        <p class="g-cook-blurb" id="g-mode-blurb">Jade proposes 2–3 real dishes
           from what's in the kitchen — priority first, then whatever's expiring.
-          Proposals land in <strong>#scheduler on Discord</strong> within ~30s,
-          with tap-to-log reactions.</p>
+          Proposals land in <strong>#scheduler on Discord</strong> within ~30s.</p>
         <div class="g-cook-weights">
           <button class="r-btn g-weight" data-weight="light">🥗 Light</button>
           <button class="r-btn g-weight g-weight-on" data-weight="medium">🍛 Medium</button>
@@ -327,7 +364,25 @@
         <p id="g-cook-status" class="r-status"></p>
       </div>`;
 
+    const BLURBS = {
+      kitchen: `Jade proposes 2–3 real dishes from what's in the kitchen — priority
+        first, then whatever's expiring. Proposals land in <strong>#scheduler on
+        Discord</strong> within ~30s.`,
+      fresh: `Dish first, shopping after: Jade suggests 2–3 real dishes worth
+        buying for (budget-aware, tuned to your taste), each with a to-buy list.
+        Tapping one in Discord saves the list to the 🛒 strip on Inventory.`,
+    };
+    let mode = "kitchen";
     let weight = "medium";
+    panel.querySelectorAll(".g-mode").forEach((b) =>
+      b.addEventListener("click", () => {
+        mode = b.dataset.mode;
+        panel.querySelectorAll(".g-mode").forEach((x) =>
+          x.classList.toggle("g-weight-on", x === b));
+        el("g-mode-blurb").innerHTML = BLURBS[mode];
+        el("g-cook-go").textContent = mode === "fresh" ? "🛒 Inspire me" : "🍳 Propose dinner";
+      })
+    );
     panel.querySelectorAll(".g-weight").forEach((b) =>
       b.addEventListener("click", () => {
         weight = b.dataset.weight;
@@ -342,7 +397,7 @@
       btn.disabled = true;
       status.textContent = "Sending to the kitchen brain…";
       const ok = await window.dmicoEnqueue({
-        type: "run_cook", weight,
+        type: "run_cook", weight, fresh: mode === "fresh",
         constraints: el("g-cook-cons").value.trim(),
       });
       btn.disabled = false;
