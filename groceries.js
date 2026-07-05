@@ -55,6 +55,7 @@
     root.innerHTML = `
       <div class="r-tabs" role="tablist">
         <button class="r-tab current" data-tab="inventory">Inventory</button>
+        <button class="r-tab" data-tab="cook">Cook</button>
         <button class="r-tab" data-tab="cookbook">Cookbook</button>
       </div>
       <div id="g-panel"></div>`;
@@ -62,6 +63,7 @@
       t.addEventListener("click", () => {
         root.querySelectorAll(".r-tab").forEach((x) => x.classList.toggle("current", x === t));
         if (t.dataset.tab === "inventory") renderInventory();
+        else if (t.dataset.tab === "cook") renderCook();
         else renderCookbook();
       })
     );
@@ -300,6 +302,55 @@
     });
 
     container.appendChild(card);
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  COOK TAB — trigger Gemma proposals (they land in Discord)
+  // ════════════════════════════════════════════════════════════
+
+  async function renderCook() {
+    const panel = el("g-panel");
+    panel.innerHTML = `
+      <div class="r-form g-addform">
+        <p class="g-cook-blurb">Pick a meal weight and Jade proposes 2–3 real dishes
+          from what's in the kitchen — priority first, then whatever's expiring.
+          Proposals land in <strong>#scheduler on Discord</strong> within ~30s,
+          with tap-to-log reactions.</p>
+        <div class="g-cook-weights">
+          <button class="r-btn g-weight" data-weight="light">🥗 Light</button>
+          <button class="r-btn g-weight g-weight-on" data-weight="medium">🍛 Medium</button>
+          <button class="r-btn g-weight" data-weight="heavy">🍲 Heavy</button>
+        </div>
+        <div class="r-field"><label>Constraints (optional)</label>
+          <input id="g-cook-cons" type="text" placeholder="e.g. 15 minutes, one wok, no chili" /></div>
+        <button id="g-cook-go" class="btn-primary r-btn">🍳 Propose dinner</button>
+        <p id="g-cook-status" class="r-status"></p>
+      </div>`;
+
+    let weight = "medium";
+    panel.querySelectorAll(".g-weight").forEach((b) =>
+      b.addEventListener("click", () => {
+        weight = b.dataset.weight;
+        panel.querySelectorAll(".g-weight").forEach((x) =>
+          x.classList.toggle("g-weight-on", x === b));
+      })
+    );
+
+    el("g-cook-go").addEventListener("click", async () => {
+      const btn = el("g-cook-go");
+      const status = el("g-cook-status");
+      btn.disabled = true;
+      status.textContent = "Sending to the kitchen brain…";
+      const ok = await window.dmicoEnqueue({
+        type: "run_cook", weight,
+        constraints: el("g-cook-cons").value.trim(),
+      });
+      btn.disabled = false;
+      status.textContent = ok
+        ? "Queued. Proposals appear in #scheduler within ~30s."
+        : "Couldn't queue that. Try again.";
+      if (ok) setTimeout(() => { if (el("g-cook-status")) el("g-cook-status").textContent = ""; }, 8000);
+    });
   }
 
   // ════════════════════════════════════════════════════════════

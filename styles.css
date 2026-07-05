@@ -3526,3 +3526,23 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   margin: 6px 0 10px;
   cursor: pointer;
 }
+
+.g-cook-blurb {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+.g-cook-weights {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.g-weight-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+  font-weight: 600;
+}
