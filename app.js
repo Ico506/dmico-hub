@@ -35,6 +35,8 @@ const MODULES = [
     blurb: "Track exams with a live countdown and run focus sessions." },
   { id: "hygiene",    label: "Hygiene",    lit: true,
     blurb: "Cleaning timers and supply inventory." },
+  { id: "groceries",  label: "Groceries",  lit: true,
+    blurb: "Kitchen inventory with freshness tracking and your personal cookbook." },
   { id: "gamedev",    label: "Game Dev",   lit: true,
     blurb: "JadeFrog Studio projects, devlog, and idea board." },
   { id: "finance",    label: "Finance",    lit: true,
@@ -293,6 +295,8 @@ function openModule(id) {
     window.renderSelfStudy(body, sb);
   } else if (id === "hygiene" && window.renderHygiene) {
     window.renderHygiene(body, sb);
+  } else if (id === "groceries" && window.renderGroceries) {
+    window.renderGroceries(body, sb);
   } else if (id === "gamedev" && window.renderGameDev) {
     window.renderGameDev(body, sb);
   } else if (id === "finance" && window.renderFinance) {

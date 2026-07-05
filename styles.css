@@ -3426,3 +3426,103 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
 .fin-rec-log-btn { flex-shrink: 0; }
 
 .fin-rec-item-rec { display: flex; gap: 6px; }
+
+/* ── Groceries module ─────────────────────────────────────── */
+
+.g-eatfirst {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--accent-wash);
+  border-radius: var(--radius, 12px);
+}
+
+.g-eatfirst-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.g-eatchip {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.g-eat-past { color: var(--clay); font-weight: 600; }
+.g-eat-soon { color: var(--lantern); font-weight: 600; }
+
+.g-group {
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 18px 0 8px;
+  opacity: 0.75;
+}
+
+.g-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius, 12px);
+}
+
+.g-card-out { opacity: 0.55; }
+
+.g-card-left { flex: 1; min-width: 0; }
+
+.g-card-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.g-card-meta {
+  font-size: 0.78rem;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.g-card-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.g-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.g-state-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+  font-weight: 600;
+}
+
+.g-del { color: var(--clay); }
+
+.g-priority-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  margin: 6px 0 10px;
+  cursor: pointer;
+}
