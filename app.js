@@ -86,6 +86,9 @@ function showApp(session) {
     try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
     setTimeout(() => { try { window.dmicoHandleNfc(act); } catch (e) { console.error("nfc", e); } }, 380);
   }
+  // Nudge (PWA): "what's new" banner + tab count, and the bell toggle in the rail.
+  try { window.dmicoRenderNudge && window.dmicoRenderNudge(); } catch (e) {}
+  try { window.dmicoInitNudgeUI && window.dmicoInitNudgeUI(); } catch (e) {}
 }
 
 function greeting(session) {

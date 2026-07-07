@@ -16,4 +16,9 @@ window.DMICO_CONFIG = {
 
   // Settings → API Keys → Publishable key (sb_publishable_...). Paste it here:
   SUPABASE_ANON_KEY: "sb_publishable_CF0CgAOY4Ak70NRqILPWlA_IJWWcAuE",
+
+  // Web-push public VAPID key (safe to ship; it is the PUBLIC half). The bot holds
+  // the matching private key in a Railway env var. Used to subscribe this device
+  // to the one gentle evening nudge.
+  VAPID_PUBLIC_KEY: "BLal1o5EwMxhmbPp8_lPuMSzfPC2kjdo9mNRxExVayHPzCzLyCb11WiSPEDD2WoxXyyV8OdPGfmI1qgXEH8wJbs",
 };
