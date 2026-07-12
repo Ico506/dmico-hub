@@ -1429,11 +1429,15 @@
       <div class="r-actions">
         ${!g.done ? `<button class="r-mini fin-add-btn">Add saved</button>` : ""}
         ${!g.done ? `<button class="r-mini fin-update-btn">Set total</button>` : ""}
+        ${g.done ? `<button class="r-mini fin-charge-btn">Log as expense</button>` : ""}
         <button class="r-mini r-del fin-del-goal">Remove</button>
       </div>`;
     if (!g.done) {
       card.querySelector(".fin-add-btn").addEventListener("click", () => addToGoal(g, card));
       card.querySelector(".fin-update-btn").addEventListener("click", () => updateGoal(g, card));
+    } else {
+      const chargeBtn = card.querySelector(".fin-charge-btn");
+      if (chargeBtn) chargeBtn.addEventListener("click", () => chargeGoal(g, card));
     }
     card.querySelector(".fin-del-goal").addEventListener("click", async () => {
       const lbl = g.done ? `Remove "${g.label}" from the board?` : `Remove "${g.label}"? Progress will be lost.`;
@@ -1442,6 +1446,28 @@
       if (!error) drawGoals();
     });
     container.appendChild(card);
+  }
+
+  // Charge a REACHED goal as an expense for the current month (the actual purchase
+  // finally happening). Defaults to the goal's target, then offers to clear the goal
+  // off the board so it can't be charged twice.
+  async function chargeGoal(goal, card) {
+    const def = String(Number(goal.target || goal.current || 0));
+    const raw = window.prompt(
+      `Log "${goal.label}" as an expense this month.\nAmount (RM):`, def
+    );
+    if (raw === null) return;
+    const amt = parseFloat(raw);
+    if (isNaN(amt) || amt <= 0) { alert("Enter a valid amount."); return; }
+    const { error } = await SB.from("finance_expenses").insert({
+      amount: amt, category: goal.label, note: "Goal reached 🎉",
+      logged_at: new Date().toISOString(), added_via: "goal",
+    });
+    if (error) { console.error(error); alert("Couldn't log the expense. Try again."); return; }
+    if (window.confirm(`Logged ${fmtRM(amt)} as an expense this month.\nClear "${goal.label}" off the goals board now?`)) {
+      await SB.from("finance_goals").delete().eq("id", goal.id);
+    }
+    await drawGoals();
   }
 
   // Explicit contribution: add an amount to the goal's saved total (predictable,
