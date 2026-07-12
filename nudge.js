@@ -16,6 +16,8 @@
   ];
 
   const today = () => new Date().toISOString().slice(0, 10);
+  const esc = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   function injectStyles() {
     if (document.getElementById("nudge-styles")) return;
@@ -46,8 +48,20 @@
       const dg = digest[d.id];
       if (dg && dg.date === t) {
         const sig = `${d.id}:${t}`;
-        if (!seen[sig]) items.push({ label: `${d.label} digest`, sig });
+        if (!seen[sig]) items.push({ label: `${d.label} digest`, sig, mod: "curators" });
       }
+    });
+    // Real at-stake: subscriptions renewing within 2 days (honest, factual).
+    const subs = (await window.dmicoKvGet("finance_subscriptions")) || {};
+    const subItems = Array.isArray(subs.items) ? subs.items : [];
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const horizon = new Date(now.getTime() + 2 * 864e5);
+    subItems.forEach((it) => {
+      if (!it.next) return;
+      const due = new Date(it.next + "T00:00:00");
+      if (isNaN(due.getTime()) || due < now || due > horizon) return;
+      const sig = `sub:${it.id || it.name}:${it.next}`;
+      if (!seen[sig]) items.push({ label: `${it.name || "Subscription"} renews ${it.next}`, sig, mod: "finance" });
     });
     return items;
   }
@@ -85,10 +99,10 @@
     bar.id = "nudge-banner";
     bar.className = "nudge-banner";
     const links = items
-      .map((it) => `<button class="nudge-link" data-sig="${it.sig}">${it.label}</button>`)
+      .map((it) => `<button class="nudge-link" data-sig="${esc(it.sig)}" data-mod="${esc(it.mod || "curators")}">${esc(it.label)}</button>`)
       .join(" · ");
     bar.innerHTML =
-      `<span>🔔 <strong>New since you last looked:</strong></span>` +
+      `<span>🔔 <strong>What needs you:</strong></span>` +
       `<span class="nudge-links">${links}</span>` +
       `<button class="nudge-x" title="Dismiss" aria-label="Dismiss">✕</button>`;
 
@@ -100,7 +114,7 @@
 
     bar.querySelectorAll(".nudge-link").forEach((b) =>
       b.addEventListener("click", async () => {
-        if (window.__openModule) window.__openModule("curators");
+        if (window.__openModule) window.__openModule(b.dataset.mod || "curators");
         await markSeen([b.dataset.sig]);
         window.dmicoRenderNudge();
       })

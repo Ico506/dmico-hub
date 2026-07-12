@@ -244,7 +244,10 @@
     const hasSnap = digest && digest.snapshot;
     const hasItems = digest && (digest.items || []).length;
     if (!hasSnap && !hasItems) {
-      list.innerHTML = `<div class="r-card"><p class="r-abstract">No digest yet. Hit “${esc(m.scoutWord)} now”, or wait for the morning run. Quiet days mean nothing cleared the taste bar, which is fine.</p></div>`;
+      const p = await getProfile();
+      const nTopics = (p.topics || []).length;
+      const t = p.time || "07:00";
+      list.innerHTML = `<div class="r-card"><p class="r-abstract">You've tuned <strong>${nTopics} topic${nTopics === 1 ? "" : "s"}</strong> for this scout. The first digest lands around <strong>${esc(t)}</strong>, or hit “${esc(m.scoutWord)} now” to pull one immediately. Quiet days just mean nothing cleared your taste bar, which is fine.</p></div>`;
       return;
     }
 

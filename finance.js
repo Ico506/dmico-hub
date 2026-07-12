@@ -985,7 +985,7 @@
       <div class="r-form fin-addform">
         <div class="r-row2">
           <div class="r-field"><label>Amount (RM)</label><input id="fe-amount" type="number" min="0" step="0.01" placeholder="0.00" /></div>
-          <div class="r-field"><label>Category</label><input id="fe-cat" type="text" placeholder="e.g. Food, Transport" /></div>
+          <div class="r-field"><label>Category</label><input id="fe-cat" type="text" list="fe-cat-list" placeholder="e.g. Food, Transport" /><datalist id="fe-cat-list"></datalist></div>
         </div>
         <div class="r-row2">
           <div class="r-field"><label>Note</label><input id="fe-note" type="text" placeholder="optional detail" /></div>
@@ -1021,6 +1021,17 @@
     el("fe-save").addEventListener("click", addExpense);
     el("fin-prev").addEventListener("click", () => shiftMonth(-1));
     el("fin-next").addEventListener("click", () => shiftMonth(1));
+
+    // Smart default: pre-fill the category you used last, and offer the ones you
+    // already use as autocomplete, so logging is a scan-and-adjust, not a retype.
+    const catInput = el("fe-cat");
+    const lastCat = localStorage.getItem("dmico-last-exp-cat");
+    if (lastCat && catInput && !catInput.value) catInput.value = lastCat;
+    SB.from("finance_expenses").select("category").not("category", "is", null).then(({ data }) => {
+      const cats = [...new Set((data || []).map((r) => (r.category || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      const dl = el("fe-cat-list");
+      if (dl) dl.innerHTML = cats.map((c) => `<option value="${c.replace(/"/g, "&quot;")}"></option>`).join("");
+    });
     el("fe-recurring").addEventListener("change", () => {
       const recLabel = el("fe-rec-label");
       recLabel.hidden = !el("fe-recurring").checked;
@@ -1141,6 +1152,7 @@
     msg.textContent = "Logging…";
     const { error } = await SB.from("finance_expenses").insert(row);
     if (error) { console.error(error); msg.textContent = "Couldn't save. Try again."; return; }
+    if (row.category) localStorage.setItem("dmico-last-exp-cat", row.category);
     el("fe-amount").value = ""; el("fe-cat").value = "";
     el("fe-note").value   = ""; el("fe-date").value = new Date().toISOString().slice(0, 10);
     if (el("fe-project"))   el("fe-project").value = "";
