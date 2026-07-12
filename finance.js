@@ -224,7 +224,11 @@
     const thisMonthExp    = monthlySavings.find(
       (m) => m.year === thisYear && m.month === thisMonth
     )?.expenses ?? 0;
-    const savings = totalIncomeThisMonth - thisMonthExp;
+    // The 50/30/20 budget rule is based on the monthly ALLOWANCE only. Extra income
+    // (surplus) is tracked in its own panel and still counts toward overall savings
+    // (the 6-month chart + total saved), but must NOT inflate the budget targets or
+    // the save bar — otherwise a good month of extra income makes the plan look off.
+    const ruleSavings = income - thisMonthExp;
     const budget  = getBudget();
 
     // Render shell.
@@ -324,7 +328,7 @@
     const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b));
 
-    draw503020(el("fin-ov-rule-section"), totalIncomeThisMonth, split, savings, allCats, buckets, activeRule());
+    draw503020(el("fin-ov-rule-section"), income, split, ruleSavings, allCats, buckets, activeRule());
     drawSavingsChart(el("fin-ov-chart-wrap"), monthlySavings);
     drawProjections(el("fin-ov-projections"), goals, avgMonthlySavings, totalSaved);
   }
