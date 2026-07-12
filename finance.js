@@ -101,6 +101,7 @@
             <button class="r-tab current" data-tab="overview">Overview</button>
             <button class="r-tab" data-tab="expenses">Expenses</button>
             <button class="r-tab" data-tab="goals">Goals</button>
+            <button class="r-tab" data-tab="savings">Savings</button>
             <button class="r-tab" data-tab="investments">Investments</button>
             <button class="r-tab" data-tab="subs">Subscriptions</button>
             <button class="r-tab" data-tab="review">Review</button>
@@ -119,6 +120,7 @@
         const tab = t.dataset.tab;
         if (tab === "overview") renderOverview();
         else if (tab === "expenses") renderExpenses();
+        else if (tab === "savings") renderSavings();
         else if (tab === "investments") renderInvestments();
         else if (tab === "subs") renderSubscriptions();
         else if (tab === "review") renderReview();
@@ -328,7 +330,12 @@
     const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b));
 
-    draw503020(el("fin-ov-rule-section"), income, split, ruleSavings, allCats, buckets, activeRule());
+    // Subscriptions (kv) → a faint "reserve this much for subs" marker on the Needs bar.
+    const subsData = (await window.dmicoKvGet("finance_subscriptions")) || {};
+    const subsItems = Array.isArray(subsData.items) ? subsData.items : [];
+    const subsMonthly = subsItems.reduce((s, it) => s + (it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0)), 0);
+
+    draw503020(el("fin-ov-rule-section"), income, split, ruleSavings, allCats, buckets, activeRule(), subsMonthly);
     drawSavingsChart(el("fin-ov-chart-wrap"), monthlySavings);
     drawProjections(el("fin-ov-projections"), goals, avgMonthlySavings, totalSaved);
   }
@@ -415,8 +422,11 @@
   }
 
   // ── Surplus / Extra Income panel ───────────────────────────
-  function drawSurplusPanel(section, thisSurplus, allSurplus, thisYear, thisMonth) {
+  async function drawSurplusPanel(section, thisSurplus, allSurplus, thisYear, thisMonth) {
     if (!section) return;
+    // Savings pools, so extra income can be stashed straight into one on log.
+    const savData0 = (await window.dmicoKvGet("finance_savings")) || {};
+    const savPools = Array.isArray(savData0.pools) ? savData0.pools : [];
     const monthLabel = `${MONTH_NAMES[thisMonth]} ${thisYear}`;
     const total = thisSurplus.reduce((s, r) => s + Number(r.amount), 0);
 
@@ -459,6 +469,10 @@
                placeholder="Amount (RM)" class="fin-ov-income-input" />
         <input id="fin-surplus-desc" type="text"
                placeholder="Description (optional)" class="fin-ov-income-notes-input" />
+        ${savPools.length ? `<select id="fin-surplus-pool" class="fin-ov-income-input" title="Optionally stash this into a savings pool">
+          <option value="">No pool</option>
+          ${savPools.map((p) => `<option value="${esc(p.id)}">→ ${esc(p.name)}</option>`).join("")}
+        </select>` : ""}
         <button id="fin-surplus-save" class="r-mini">+ Add extra</button>
         <p id="fin-surplus-status" class="r-status"></p>
       </div>
@@ -485,6 +499,19 @@
         logged_at: new Date().toISOString(),
       });
       if (error) { console.error(error); status.textContent = "Couldn't save. Try again."; return; }
+      // Optionally stash the same amount into a chosen savings pool (deposit).
+      const poolSel = section.querySelector("#fin-surplus-pool");
+      const poolId = poolSel ? poolSel.value : "";
+      if (poolId) {
+        const sd = (await window.dmicoKvGet("finance_savings")) || {};
+        const ps = Array.isArray(sd.pools) ? sd.pools : [];
+        const pool = ps.find((p) => String(p.id) === String(poolId));
+        if (pool) {
+          pool.history = Array.isArray(pool.history) ? pool.history : [];
+          pool.history.push({ id: Date.now().toString(36), ts: new Date().toISOString(), type: "in", amount: amt, note: desc || "Extra income" });
+          await window.dmicoKvSet("finance_savings", { pools: ps });
+        }
+      }
       renderOverview();
     });
 
@@ -516,7 +543,7 @@
     return DEFAULT_RULE;
   }
 
-  function draw503020(section, income, split, savings, allCats, buckets, rule) {
+  function draw503020(section, income, split, savings, allCats, buckets, rule, subsReserve) {
     rule = rule || DEFAULT_RULE;
     const noIncome    = income <= 0;
     const needsTarget = income * (rule.needs   || 0) / 100;
@@ -524,10 +551,15 @@
     const saveTarget  = income * (rule.savings || 0) / 100;
 
     // A spend bar: actual vs its bucket target (over target reads as a warning).
-    // Meta line shows spent / limit / remaining (number only).
-    const spendBar = (label, actual, target) => {
+    // Meta line shows spent / limit / remaining. An optional `marker` draws a faint
+    // vertical line at that amount's position (used on Needs for the subs reserve).
+    const spendBar = (label, actual, target, marker) => {
       const pct  = target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
       const over = actual > target && target > 0;
+      const markPct = (marker && marker > 0 && target > 0) ? Math.min(100, (marker / target) * 100) : null;
+      const markEl = markPct !== null
+        ? `<div class="fin-ov-bar-marker" style="left:${markPct}%" title="Reserve about ${fmtRM(marker)} here for subscriptions"></div>`
+        : "";
       return `
         <div class="fin-ov-rule-bar-block">
           <div class="fin-ov-rule-bar-head">
@@ -535,11 +567,13 @@
           </div>
           <div class="fin-ov-bar-track">
             <div class="fin-ov-bar-fill ${over ? "fin-ov-bar-over" : "fin-ov-bar-spend"}" style="width:${pct}%"></div>
+            ${markEl}
           </div>
           <div class="fin-ov-bar-meta">
             ${over
               ? `<span>${fmtRM(actual)} of ${fmtRM(target)} <span class="fin-ov-over-text">· over by ${fmtRM(actual - target)}</span></span>`
               : `<span>${fmtRM(actual)} of ${fmtRM(target)} · ${fmtRM(target - actual)} left</span>`}
+            ${markPct !== null ? `<span class="fin-ov-sub-reserve">· ${fmtRM(marker)} for subs</span>` : ""}
           </div>
         </div>`;
     };
@@ -557,6 +591,11 @@
       `<option value="custom" ${isCustom ? "selected" : ""}>Custom${isCustom ? ` (${rule.needs}/${rule.wants}/${rule.savings})` : ""}</option>`;
 
     section.innerHTML = `
+      <style>
+        .fin-ov-bar-track{position:relative;}
+        .fin-ov-bar-marker{position:absolute;top:-3px;bottom:-3px;width:2px;background:currentColor;opacity:0.35;border-radius:1px;}
+        .fin-ov-sub-reserve{opacity:0.6;margin-left:4px;}
+      </style>
       <div class="fin-ov-section-head">
         <span class="fin-ov-section-label">Budget rule</span>
         <select class="r-mini-select fin-rule-select" title="Pick a budgeting rule">${ruleOptions}</select>
@@ -564,7 +603,7 @@
       </div>
       ${noIncome ? `<p class="fin-ov-rule-empty">Targets will appear once you log this month's allowance.</p>` : `
       <div class="fin-ov-rule-grid">
-        ${spendBar(`Needs · ${rule.needs}%`, split.need || 0, needsTarget)}
+        ${spendBar(`Needs · ${rule.needs}%`, split.need || 0, needsTarget, subsReserve)}
         ${rule.wants > 0 ? spendBar(`Wants · ${rule.wants}%`, split.want || 0, wantsTarget) : ""}
 
         <div class="fin-ov-rule-bar-block fin-ov-rule-save-block">
@@ -1673,6 +1712,141 @@
       d.items.push({ id: Date.now().toString(36), name, amount: amt, cycle: el("sub-cycle").value, next: el("sub-next").value || null });
       const ok = await window.dmicoKvSet("finance_subscriptions", d);
       if (ok) renderSubscriptions(); else { msg.hidden = false; msg.textContent = "Couldn't save — try again."; }
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  SAVINGS TAB — named savings pools, kv-backed (finance_savings).
+  //  Where extra income lives as a running, drawable balance, kept
+  //  separate from the month-to-month allowance budget.
+  // ════════════════════════════════════════════════════════════
+  async function renderSavings() {
+    const panel = el("fin-panel");
+    const rm = (n) => "RM " + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    panel.innerHTML = `<p class="r-status">Loading…</p>`;
+    const data = (await window.dmicoKvGet("finance_savings")) || {};
+    const pools = Array.isArray(data.pools) ? data.pools : [];
+    const bal = (p) => (p.history || []).reduce((s, h) => s + (h.type === "out" ? -Number(h.amount || 0) : Number(h.amount || 0)), 0);
+    const total = pools.reduce((s, p) => s + bal(p), 0);
+    const save = (next) => window.dmicoKvSet("finance_savings", { pools: next });
+
+    panel.innerHTML = `
+      <style>
+        .sv-head{font-size:1rem;margin:4px 0 12px;}
+        .sv-head b{font-variant-numeric:tabular-nums;}
+        .sv-head .sv-sub{font-size:0.8rem;opacity:0.6;}
+        .sv-pool{padding:12px 14px;border-radius:11px;background:rgba(127,127,127,0.06);margin-bottom:10px;}
+        .sv-pool-top{display:flex;align-items:center;gap:10px;}
+        .sv-pool-name{flex:1;font-weight:700;}
+        .sv-pool-bal{font-variant-numeric:tabular-nums;font-weight:700;}
+        .sv-x{background:transparent;border:none;color:inherit;opacity:0.45;cursor:pointer;font-size:1rem;}
+        .sv-bar-track{height:6px;border-radius:4px;background:rgba(127,127,127,0.18);margin:8px 0 4px;overflow:hidden;}
+        .sv-bar-fill{height:100%;background:#5aa36e;}
+        .sv-target{font-size:0.74rem;opacity:0.65;}
+        .sv-actions{display:flex;gap:6px;margin-top:8px;}
+        .sv-actions button{font:inherit;font-size:0.82rem;padding:4px 10px;border-radius:7px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;cursor:pointer;}
+        .sv-actions .sv-in{border-color:rgba(90,163,110,0.6);}
+        .sv-hist{margin-top:8px;font-size:0.76rem;opacity:0.7;}
+        .sv-hist-row{display:flex;justify-content:space-between;padding:2px 0;}
+        .sv-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+        .sv-add input{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
+        .sv-add #sv-name{flex:1;min-width:140px;}
+        .sv-add button{font:inherit;font-weight:600;padding:6px 14px;border-radius:8px;border:none;background:#5b8def;color:#fff;cursor:pointer;}
+      </style>
+      <div class="sv-head">Total saved: <b>${rm(total)}</b><span class="sv-sub"> · across ${pools.length} pool${pools.length === 1 ? "" : "s"}</span></div>
+      <div id="sv-list"></div>
+      <div class="sv-add">
+        <input id="sv-name" placeholder="New pool (e.g. Emergency fund)" maxlength="40" />
+        <input id="sv-target" type="number" step="0.01" placeholder="Target (optional)" style="width:150px" />
+        <button id="sv-create">Create pool</button>
+      </div>
+      <p class="r-status" id="sv-msg" hidden></p>`;
+
+    const listEl = el("sv-list");
+
+    function draw() {
+      if (!pools.length) {
+        listEl.innerHTML = `<p class="r-status">No savings pools yet. Create one and feed it your extra income.</p>`;
+        return;
+      }
+      listEl.innerHTML = pools.map((p, i) => {
+        const b = bal(p);
+        const tgt = Number(p.target || 0);
+        const pct = tgt > 0 ? Math.min(100, Math.round((b / tgt) * 100)) : 0;
+        const hist = (p.history || []).slice(-3).reverse().map((h) =>
+          `<div class="sv-hist-row"><span>${h.type === "out" ? "−" : "+"}${rm(h.amount)}${h.note ? " · " + esc(h.note) : ""}</span><span>${esc((h.ts || "").slice(0, 10))}</span></div>`
+        ).join("");
+        return `
+          <div class="sv-pool">
+            <div class="sv-pool-top">
+              <span class="sv-pool-name">${esc(p.name)}</span>
+              <span class="sv-pool-bal">${rm(b)}</span>
+              <button class="sv-x" data-del="${i}" title="Delete pool">✕</button>
+            </div>
+            ${tgt > 0 ? `<div class="sv-bar-track"><div class="sv-bar-fill" style="width:${pct}%"></div></div>
+              <div class="sv-target">${pct}% of ${rm(tgt)}${b >= tgt ? " · reached 🎉" : " · " + rm(tgt - b) + " to go"}</div>` : ""}
+            <div class="sv-actions">
+              <button class="sv-in" data-in="${i}">+ Deposit</button>
+              <button data-out="${i}">− Withdraw</button>
+              <button data-tgt="${i}">Target</button>
+            </div>
+            ${hist ? `<div class="sv-hist">${hist}</div>` : ""}
+          </div>`;
+      }).join("");
+
+      listEl.querySelectorAll("[data-in]").forEach((b) => b.addEventListener("click", () => move(+b.dataset.in, "in")));
+      listEl.querySelectorAll("[data-out]").forEach((b) => b.addEventListener("click", () => move(+b.dataset.out, "out")));
+      listEl.querySelectorAll("[data-tgt]").forEach((b) => b.addEventListener("click", () => setTarget(+b.dataset.tgt)));
+      listEl.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => delPool(+b.dataset.del)));
+    }
+
+    async function move(i, type) {
+      const p = pools[i];
+      if (!p) return;
+      const raw = window.prompt(`${type === "in" ? "Deposit to" : "Withdraw from"} "${p.name}" (RM):`);
+      if (raw === null) return;
+      const amt = parseFloat(raw);
+      if (isNaN(amt) || amt <= 0) { alert("Enter a valid amount."); return; }
+      if (type === "out" && amt > bal(p) + 1e-9 && !confirm("That's more than the pool holds. Withdraw anyway (balance goes negative)?")) return;
+      const note = (window.prompt("Note (optional):") || "").trim();
+      p.history = Array.isArray(p.history) ? p.history : [];
+      p.history.push({ id: Date.now().toString(36), ts: new Date().toISOString(), type, amount: amt, note });
+      await save(pools);
+      renderSavings();
+    }
+
+    async function setTarget(i) {
+      const p = pools[i];
+      if (!p) return;
+      const raw = window.prompt(`Target for "${p.name}" (RM, blank to clear):`, p.target || "");
+      if (raw === null) return;
+      if (raw.trim() === "") p.target = null;
+      else { const n = parseFloat(raw); if (isNaN(n) || n < 0) { alert("Enter a valid amount."); return; } p.target = n; }
+      await save(pools);
+      renderSavings();
+    }
+
+    async function delPool(i) {
+      const p = pools[i];
+      if (!p) return;
+      if (!confirm(`Delete "${p.name}"? Its ${rm(bal(p))} balance and history will be removed.`)) return;
+      pools.splice(i, 1);
+      await save(pools);
+      renderSavings();
+    }
+
+    draw();
+    el("sv-create").addEventListener("click", async () => {
+      const name = el("sv-name").value.trim();
+      const msg = el("sv-msg");
+      if (!name) { msg.hidden = false; msg.textContent = "Give the pool a name."; return; }
+      const tRaw = el("sv-target").value;
+      const target = tRaw && parseFloat(tRaw) > 0 ? parseFloat(tRaw) : null;
+      pools.push({ id: Date.now().toString(36), name, target, history: [] });
+      const ok = await save(pools);
+      if (ok) renderSavings();
+      else { msg.hidden = false; msg.textContent = "Couldn't save — try again."; }
     });
   }
 
