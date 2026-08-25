@@ -17,7 +17,12 @@ const sb = configured
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
-/* The modules. Lit ones are built; unlit ones light up as we build them. */
+/* The modules. Lit ones are built; unlit ones light up as we build them.
+   `archived: true` tucks a module into the collapsed Archive group at the foot of
+   the rail. Nothing is deleted and no routing changes, so un-archiving is a
+   one-word edit. Archived 2026-08-25 after a usage audit: these were either never
+   used, went cold, or (Research/Thesis/Self-study, Game Dev) are moving to their
+   own separate sites later. */
 const MODULES = [
   { id: "dashboard",  label: "Home",       lit: true,
     blurb: "Your life OS at a glance." },
@@ -27,25 +32,27 @@ const MODULES = [
     blurb: "The cockpit: routine anchors, planning triggers, and bot settings." },
   { id: "life",       label: "Life",       lit: true,
     blurb: "Mood, prompt-driven journal, and reflections." },
-  { id: "research",   label: "Research",   lit: true,
-    blurb: "Your reference library and paper discovery live here." },
   { id: "curators",   label: "Curators",   lit: true,
     blurb: "Proactive, taste-tuned digests. The Content Scout finds what fits you." },
-  { id: "selfstudy",  label: "Self-study", lit: true,
-    blurb: "Track exams with a live countdown and run focus sessions." },
-  { id: "hygiene",    label: "Hygiene",    lit: true,
-    blurb: "Cleaning timers and supply inventory." },
-  { id: "groceries",  label: "Groceries",  lit: true,
-    blurb: "Kitchen inventory with freshness tracking and your personal cookbook." },
-  { id: "gamedev",    label: "Game Dev",   lit: true,
-    blurb: "JadeFrog Studio projects, devlog, and idea board." },
   { id: "finance",    label: "Finance",    lit: true,
     blurb: "Expense tracker and savings goals leaderboard." },
-  { id: "thesis",     label: "Thesis",     lit: true,
-    blurb: "MPhil chapter tracker and writing log." },
   { id: "exercise",   label: "Exercise",   lit: true,
     blurb: "Weight tracking and a healthy calorie goal." },
-  { id: "entertainment", label: "Entertainment", lit: true,
+
+  /* ── Archive (hidden by default, one click to reveal) ── */
+  { id: "research",   label: "Research",   lit: true, archived: true,
+    blurb: "Your reference library and paper discovery live here." },
+  { id: "thesis",     label: "Thesis",     lit: true, archived: true,
+    blurb: "MPhil chapter tracker and writing log." },
+  { id: "selfstudy",  label: "Self-study", lit: true, archived: true,
+    blurb: "Track exams with a live countdown and run focus sessions." },
+  { id: "gamedev",    label: "Game Dev",   lit: true, archived: true,
+    blurb: "JadeFrog Studio projects, devlog, and idea board." },
+  { id: "hygiene",    label: "Hygiene",    lit: true, archived: true,
+    blurb: "Cleaning timers and supply inventory." },
+  { id: "groceries",  label: "Groceries",  lit: true, archived: true,
+    blurb: "Kitchen inventory with freshness tracking and your personal cookbook." },
+  { id: "entertainment", label: "Entertainment", lit: true, archived: true,
     blurb: "Planned game and movie sessions, and your play/watch library." },
 ];
 
@@ -100,7 +107,27 @@ function greeting(session) {
 
 /* ── The lantern rail ────────────────────────────────────────── */
 
+function injectRailStyles() {
+  if (document.getElementById("rail-archive-styles")) return;
+  const s = document.createElement("style");
+  s.id = "rail-archive-styles";
+  s.textContent = `
+    .rail-archive{margin-top:.5rem;border-top:1px solid rgba(128,128,128,.22);padding-top:.5rem;}
+    .rail-archive-sum{cursor:pointer;list-style:none;padding:.35rem .5rem;border-radius:.5rem;
+      font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;opacity:.55;}
+    .rail-archive-sum::-webkit-details-marker{display:none;}
+    .rail-archive-sum::before{content:"▸ ";display:inline-block;transition:transform .15s;}
+    .rail-archive[open] .rail-archive-sum::before{transform:rotate(90deg);}
+    .rail-archive-sum:hover{opacity:.85;}
+    .rail-archive-list{display:flex;flex-direction:column;}
+    .lantern-archived{opacity:.6;}
+    .lantern-archived:hover{opacity:1;}
+  `;
+  document.head.appendChild(s);
+}
+
 function renderRail() {
+  injectRailStyles();
   // Apply saved order to MODULES array so it persists across sessions.
   const savedOrder = localStorage.getItem("dmico-rail-order");
   if (savedOrder) {
@@ -118,11 +145,15 @@ function renderRail() {
   nav.innerHTML = "";
   let dragSrc = null;
 
-  MODULES.forEach((m) => {
+  // Active lanterns render straight into the rail; archived ones go into a
+  // collapsed group at the foot (built after this loop).
+  const buildLantern = (m, container) => {
     const b = document.createElement("button");
-    b.className = "lantern " + (m.lit ? "lit" : "unlit");
+    b.className = "lantern " + (m.lit ? "lit" : "unlit") + (m.archived ? " lantern-archived" : "");
     b.dataset.id = m.id;
-    b.setAttribute("draggable", "true");
+    // Only active lanterns reorder; dragging an archived one into the live rail
+    // would fight the archive split.
+    if (!m.archived) b.setAttribute("draggable", "true");
     b.innerHTML =
       `<span class="dot"></span>` +
       `<span class="label">${m.label}</span>` +
@@ -169,13 +200,37 @@ function renderRail() {
       const rect = b.getBoundingClientRect();
       const above = e.clientY < rect.top + rect.height / 2;
       nav.insertBefore(dragSrc, above ? b : b.nextSibling);
-      const newOrder = Array.from(nav.querySelectorAll(".lantern")).map((l) => l.dataset.id);
+      const newOrder = Array.from(nav.querySelectorAll(":scope > .lantern")).map((l) => l.dataset.id);
       MODULES.sort((a, bm) => newOrder.indexOf(a.id) - newOrder.indexOf(bm.id));
       localStorage.setItem("dmico-rail-order", JSON.stringify(newOrder));
     });
 
-    nav.appendChild(b);
-  });
+    container.appendChild(b);
+  };
+
+  const active = MODULES.filter((m) => !m.archived);
+  const archived = MODULES.filter((m) => m.archived);
+
+  active.forEach((m) => buildLantern(m, nav));
+
+  if (archived.length) {
+    const box = document.createElement("details");
+    box.className = "rail-archive";
+    // Remember whether the drawer was left open.
+    box.open = localStorage.getItem("dmico-archive-open") === "1";
+    box.addEventListener("toggle", () =>
+      localStorage.setItem("dmico-archive-open", box.open ? "1" : "0")
+    );
+    const sum = document.createElement("summary");
+    sum.className = "rail-archive-sum";
+    sum.textContent = `Archive (${archived.length})`;
+    box.appendChild(sum);
+    const inner = document.createElement("div");
+    inner.className = "rail-archive-list";
+    box.appendChild(inner);
+    archived.forEach((m) => buildLantern(m, inner));
+    nav.appendChild(box);
+  }
 }
 
 // Exposed for dashboard cards to navigate between modules
