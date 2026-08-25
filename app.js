@@ -95,6 +95,7 @@ function showApp(session) {
   }
   // Nudge (PWA): "what's new" banner + tab count, and the bell toggle in the rail.
   try { window.dmicoRenderNudge && window.dmicoRenderNudge(); } catch (e) {}
+  try { window.dmicoRefreshRail && window.dmicoRefreshRail(sb); } catch (e) {}
   try { window.dmicoInitNudgeUI && window.dmicoInitNudgeUI(); } catch (e) {}
 }
 
@@ -122,6 +123,20 @@ function injectRailStyles() {
     .rail-archive-list{display:flex;flex-direction:column;}
     .lantern-archived{opacity:.6;}
     .lantern-archived:hover{opacity:1;}
+    /* Attention state. Deliberately NOT called "lit", which already means "module is
+       built". These ride on top: warm = something waiting, attn = needs you now. */
+    .lantern-attn-warm .dot{background:var(--amber,#B08A2A);}
+    .lantern-attn-lit .dot{background:var(--lantern,#C4661F);
+      box-shadow:0 0 0 3px var(--lantern-glow,rgba(196,102,31,.32));
+      animation:lantern-breathe 2.6s ease-in-out infinite;}
+    .lantern-attn-lit .label{font-weight:600;}
+    @keyframes lantern-breathe{
+      0%,100%{box-shadow:0 0 0 3px var(--lantern-glow,rgba(196,102,31,.32));}
+      50%{box-shadow:0 0 0 6px rgba(196,102,31,.14);}
+    }
+    @media (prefers-reduced-motion:reduce){
+      .lantern-attn-lit .dot{animation:none;}
+    }
   `;
   document.head.appendChild(s);
 }
@@ -235,6 +250,21 @@ function renderRail() {
 
 // Exposed for dashboard cards to navigate between modules
 window.__openModule = function (id) { openModule(id); };
+
+/* Paint the rail with attention state, so a glance at the lanterns tells you where
+   something is waiting. Reads the same shared computation as the Home block and the
+   banner, so the three surfaces can never disagree. Best-effort and non-blocking. */
+window.dmicoRefreshRail = async function (sbClient) {
+  if (!window.dmicoAttentionMap) return;
+  try {
+    const map = await window.dmicoAttentionMap(sbClient || sb);
+    document.querySelectorAll(".lantern").forEach((l) => {
+      const tone = map[l.dataset.id];
+      l.classList.toggle("lantern-attn-lit", tone === "lit");
+      l.classList.toggle("lantern-attn-warm", tone === "warm");
+    });
+  } catch (e) { console.error("rail refresh failed", e); }
+};
 
 /* NFC tap-actions: an NFC tag opens the hub with #do=<action>; this dispatches
    it to the right place. Each follow-up is best-effort and guarded, so a missing

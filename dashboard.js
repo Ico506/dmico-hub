@@ -16,6 +16,7 @@ window.renderDashboard = async function (container, sb) {
       <p class="dash-date">${dateStr}</p>
       <p class="dash-sub">Here's where everything stands.</p>
     </div>
+    <div id="dash-now"></div>
     <div class="dash-board" id="dash-board">
       <div id="dash-focus"></div>
       <div id="dash-week"></div>
@@ -28,6 +29,15 @@ window.renderDashboard = async function (container, sb) {
           </div>`).join("")}
       </div>
     </div>`;
+
+  // The "right now" state block. Fetched independently so it lands as fast as
+  // possible; it is the reason to open the hub, so it must not wait on the cards.
+  if (window.renderNowBlock) {
+    window.dmicoInvalidateState && window.dmicoInvalidateState();
+    window.renderNowBlock(document.getElementById("dash-now"), sb)
+      .then(() => window.dmicoRefreshRail && window.dmicoRefreshRail(sb))
+      .catch((e) => console.error("now block failed", e));
+  }
 
   // Pinned, draggable photo board (independent fetch; never blocks the signal cards).
   if (window.renderDashboardPhotos) {
