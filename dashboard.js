@@ -10,6 +10,14 @@ window.renderDashboard = async function (container, sb) {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
+  // Every module that owns a Home card. Used to size the loading skeleton so it does
+  // not flash cards that are about to be filtered out as archived.
+  const CARD_IDS = ["week", "entertainment", "control", "research", "selfstudy",
+                    "hygiene", "gamedev", "finance", "thesis", "exercise"];
+  const skeletonCount = CARD_IDS.filter(
+    (id) => !(window.dmicoIsArchived && window.dmicoIsArchived(id))
+  ).length || CARD_IDS.length;
+
   // Show skeletons while data loads
   container.innerHTML = `
     <div class="dash-header">
@@ -21,7 +29,7 @@ window.renderDashboard = async function (container, sb) {
       <div id="dash-focus"></div>
       <div id="dash-week"></div>
       <div class="dash-grid" id="dash-grid">
-        ${Array.from({ length: 7 }).map(() => `
+        ${Array.from({ length: skeletonCount }).map(() => `
           <div class="dash-card dash-card--loading">
             <div class="dash-skel"></div>
             <div class="dash-skel dash-skel--short"></div>
@@ -370,7 +378,13 @@ window.renderDashboard = async function (container, sb) {
     },
   ];
 
-  document.getElementById("dash-grid").innerHTML = cards
+  // Archived modules lose their Home card too, so the rail and the dashboard always
+  // agree. app.js owns the archived flag; we just ask it.
+  const visibleCards = cards.filter(
+    (c) => !(window.dmicoIsArchived && window.dmicoIsArchived(c.id))
+  );
+
+  document.getElementById("dash-grid").innerHTML = visibleCards
     .map(
       (c, i) => `
     <button class="dash-card dash-card--${c.tone}" data-module="${c.id}" style="animation-delay:${i * 55}ms">

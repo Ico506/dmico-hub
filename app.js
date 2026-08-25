@@ -251,6 +251,17 @@ function renderRail() {
 // Exposed for dashboard cards to navigate between modules
 window.__openModule = function (id) { openModule(id); };
 
+/* Single source of truth for what is archived. The MODULES array above decides, and
+   every other surface (rail, Home cards) asks here, so archiving a module in one
+   place hides it everywhere. */
+window.dmicoIsArchived = function (id) {
+  const m = MODULES.find((x) => x.id === id);
+  return !!(m && m.archived);
+};
+window.dmicoVisibleCount = function () {
+  return MODULES.filter((m) => !m.archived).length;
+};
+
 /* Paint the rail with attention state, so a glance at the lanterns tells you where
    something is waiting. Reads the same shared computation as the Home block and the
    banner, so the three surfaces can never disagree. Best-effort and non-blocking. */
