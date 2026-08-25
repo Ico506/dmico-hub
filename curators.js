@@ -274,8 +274,12 @@
     card.className = "r-card";
     const pct = (v) => `${v >= 0 ? "+" : ""}${Number(v).toFixed(1)}%`;
     const dot = (v) => (v >= 0 ? "🟢" : "🔴");
-    let html = `<h3 class="r-title">📈 Portfolio snapshot</h3>
-      <div class="r-meta">${esc(digest.snapshot_ts || digest.date || "")}</div>`;
+    // With nothing held there is no portfolio, so say so plainly instead of showing
+    // an empty shell. Index context below is still worth reading.
+    const held = s.has_holdings !== false;
+    let html = `<h3 class="r-title">${held ? "📈 Portfolio snapshot" : "📈 Market context"}</h3>
+      <div class="r-meta">${esc(digest.snapshot_ts || digest.date || "")}</div>
+      ${held ? "" : `<p class="r-abstract">No holdings tracked yet. Log a buy with <code>!crypto buy</code> in Discord, or add tickers to the watchlist in the Taste tab, and this turns into a real portfolio view.</p>`}`;
 
     if ((s.crypto || []).length) {
       html += `<p class="cur-label">Crypto holdings</p><div class="cur-snaprows">`;

@@ -101,10 +101,12 @@
             <button class="r-tab current" data-tab="overview">Overview</button>
             <button class="r-tab" data-tab="expenses">Expenses</button>
             <button class="r-tab" data-tab="goals">Goals</button>
-            <button class="r-tab" data-tab="savings">Savings</button>
-            <button class="r-tab" data-tab="investments">Investments</button>
             <button class="r-tab" data-tab="subs">Subscriptions</button>
             <button class="r-tab" data-tab="review">Review</button>
+            <button class="r-tab fin-tab-extra" data-tab="savings" style="order:97" hidden>Savings</button>
+            <button class="r-tab fin-tab-extra" data-tab="investments" style="order:98" hidden>Investments</button>
+            <button id="fin-more-tabs" class="r-mini fin-more-btn" style="order:99"
+                    title="Savings and Investments">More ▾</button>
           </div>
           <div id="fin-panel"></div>
         </div>
@@ -127,6 +129,23 @@
         else renderGoals();
       })
     );
+    // Savings and Investments are both empty and rarely opened, so they sit behind a
+    // "More" disclosure rather than taking permanent space in the tab bar. Nothing is
+    // removed; the toggle just reveals them, and the choice is remembered.
+    const moreBtn = el("fin-more-tabs");
+    const extras = () => root.querySelectorAll(".fin-tab-extra");
+    const setMore = (open) => {
+      extras().forEach((t) => { t.hidden = !open; });
+      if (moreBtn) moreBtn.textContent = open ? "Less ▴" : "More ▾";
+      localStorage.setItem("dmico-fin-more", open ? "1" : "0");
+    };
+    setMore(localStorage.getItem("dmico-fin-more") === "1");
+    if (moreBtn) {
+      moreBtn.addEventListener("click", () =>
+        setMore(localStorage.getItem("dmico-fin-more") !== "1")
+      );
+    }
+
     renderOverview();
     renderWishlist(el("fin-wishlist"));
   }
