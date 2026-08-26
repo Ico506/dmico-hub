@@ -80,6 +80,7 @@ function showApp(session) {
   appView.hidden = false;
   el("greeting").textContent = greeting(session);
   renderRail();
+  renderBottomBar();
   // Reopen the module you were last in, so a page reload (tab discarded in the
   // background, phone memory eviction, F5) doesn't dump you back on Home.
   const last = localStorage.getItem("dmico-last-module");
@@ -248,6 +249,102 @@ function renderRail() {
   }
 }
 
+/* ── The mobile bottom bar ────────────────────────────────────
+   Below the tablet breakpoint the rail is replaced by a thumb-reachable bottom
+   bar: Home / Week / Life / Finance, plus a "More" slot that opens a sheet with
+   everything else (Curators, Exercise, Control, then the Archive). Confirmed in
+   the design brief, section 8.1. Each slot carries the same dim/warm/lit dot
+   language as the rail; More shows the highest state of anything inside it, so
+   nothing hides there unnoticed. */
+
+const BOTTOM_BAR_PRIMARY = ["dashboard", "week", "life", "finance"];
+const MORE_MODULE_IDS = ["control", "curators", "exercise"]; // + whatever is archived
+
+const BBAR_ICONS = {
+  dashboard: '<path d="M4 11.2 12 4.5l8 6.7"></path><path d="M6.2 10.6V19h11.6v-8.4"></path><path d="M10.2 19v-4.6h3.6V19"></path>',
+  week: '<rect x="4" y="6" width="16" height="14" rx="2.5"></rect><path d="M8 4.2v3.4M16 4.2v3.4M4.4 10.6h15.2"></path>',
+  life: '<path d="M12 20c0-5 2-9 7-10.6C18.4 15 15.8 19 12 20Z"></path><path d="M12 20C9.2 16.6 7.6 12.8 8 8.4c2.6 1.6 4 4.4 4 7.6Z"></path><path d="M12 20v-3"></path>',
+  finance: '<ellipse cx="12" cy="7.6" rx="7" ry="3.2"></ellipse><path d="M5 7.6v8.8c0 1.8 3.1 3.2 7 3.2s7-1.4 7-3.2V7.6"></path><path d="M5 12c0 1.8 3.1 3.2 7 3.2s7-1.4 7-3.2"></path>',
+  more: '<circle cx="6" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="18" cy="12" r="1.3"></circle>',
+};
+
+function svgIcon(id) {
+  return `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${BBAR_ICONS[id] || ""}</svg>`;
+}
+
+function renderBottomBar() {
+  const bar = el("bottom-bar");
+  if (!bar) return;
+  bar.innerHTML = "";
+
+  BOTTOM_BAR_PRIMARY.forEach((id) => {
+    const m = MODULES.find((x) => x.id === id);
+    const b = document.createElement("button");
+    b.className = "bbar-item";
+    b.dataset.id = id;
+    b.innerHTML = `<span class="bbar-icon">${svgIcon(id)}</span>` +
+      `<span class="bbar-label">${m ? m.label : id}</span>` +
+      `<span class="bbar-dot"></span>`;
+    b.addEventListener("click", () => openModule(id));
+    bar.appendChild(b);
+  });
+
+  const moreBtn = document.createElement("button");
+  moreBtn.className = "bbar-item";
+  moreBtn.dataset.id = "more";
+  moreBtn.innerHTML = `<span class="bbar-icon">${svgIcon("more")}</span>` +
+    `<span class="bbar-label">More</span><span class="bbar-dot"></span>`;
+  moreBtn.addEventListener("click", openMoreSheet);
+  bar.appendChild(moreBtn);
+}
+
+function moreSheetModuleIds() {
+  // Everything not already on the bottom bar: the three "more" modules, then
+  // whatever is archived, in rail order.
+  const archivedIds = MODULES.filter((m) => m.archived).map((m) => m.id);
+  return MORE_MODULE_IDS.concat(archivedIds);
+}
+
+function openMoreSheet() {
+  const sheet = el("more-sheet");
+  const list = el("more-sheet-list");
+  if (!sheet || !list) return;
+
+  list.innerHTML = moreSheetModuleIds().map((id) => {
+    const m = MODULES.find((x) => x.id === id);
+    if (!m) return "";
+    return `<button class="more-sheet-row" data-id="${id}">
+        <span class="more-sheet-dot" data-dot="${id}"></span>
+        <span class="more-sheet-label">${m.label}</span>
+      </button>`;
+  }).join("");
+
+  list.querySelectorAll(".more-sheet-row").forEach((row) =>
+    row.addEventListener("click", () => {
+      closeMoreSheet();
+      openModule(row.dataset.id);
+    })
+  );
+
+  sheet.hidden = false;
+  requestAnimationFrame(() => sheet.classList.add("open"));
+  try { window.dmicoRefreshRail && window.dmicoRefreshRail(sb); } catch (e) {}
+}
+
+function closeMoreSheet() {
+  const sheet = el("more-sheet");
+  if (!sheet) return;
+  sheet.classList.remove("open");
+  setTimeout(() => { sheet.hidden = true; }, 200);
+}
+
+(function initMoreSheet() {
+  const sheet = el("more-sheet");
+  if (!sheet) return;
+  sheet.querySelector(".more-sheet-backdrop")?.addEventListener("click", closeMoreSheet);
+})();
+
 // Exposed for dashboard cards to navigate between modules
 window.__openModule = function (id) { openModule(id); };
 
@@ -262,17 +359,43 @@ window.dmicoVisibleCount = function () {
   return MODULES.filter((m) => !m.archived).length;
 };
 
-/* Paint the rail with attention state, so a glance at the lanterns tells you where
-   something is waiting. Reads the same shared computation as the Home block and the
-   banner, so the three surfaces can never disagree. Best-effort and non-blocking. */
+/* Paint the rail AND the mobile bottom bar with attention state, so a glance at
+   either tells you where something is waiting. Reads the same shared computation
+   as the Home block, so every surface agrees. Best-effort and non-blocking. */
 window.dmicoRefreshRail = async function (sbClient) {
   if (!window.dmicoAttentionMap) return;
   try {
     const map = await window.dmicoAttentionMap(sbClient || sb);
+
     document.querySelectorAll(".lantern").forEach((l) => {
       const tone = map[l.dataset.id];
       l.classList.toggle("lantern-attn-lit", tone === "lit");
       l.classList.toggle("lantern-attn-warm", tone === "warm");
+    });
+
+    const paintDot = (dotEl, tone) => {
+      if (!dotEl) return;
+      dotEl.classList.toggle("bbar-dot-lit", tone === "lit");
+      dotEl.classList.toggle("bbar-dot-warm", tone === "warm");
+    };
+
+    document.querySelectorAll(".bbar-item").forEach((b) => {
+      const id = b.dataset.id;
+      if (id === "more") {
+        // More carries the highest state of anything tucked inside it, so
+        // nothing hides there unnoticed.
+        const inside = moreSheetModuleIds();
+        const tone = inside.some((mid) => map[mid] === "lit") ? "lit"
+          : inside.some((mid) => map[mid] === "warm") ? "warm" : null;
+        paintDot(b.querySelector(".bbar-dot"), tone);
+      } else {
+        paintDot(b.querySelector(".bbar-dot"), map[id]);
+      }
+    });
+
+    // The More sheet, if open, carries its own per-row dots.
+    document.querySelectorAll(".more-sheet-dot").forEach((dotEl) => {
+      paintDot(dotEl, map[dotEl.dataset.dot]);
     });
   } catch (e) { console.error("rail refresh failed", e); }
 };
@@ -374,6 +497,10 @@ function openModule(id) {
 
   document.querySelectorAll(".lantern").forEach((n) =>
     n.classList.toggle("current", n.dataset.id === id)
+  );
+  document.querySelectorAll(".bbar-item").forEach((n) =>
+    n.classList.toggle("current", n.dataset.id === id ||
+      (n.dataset.id === "more" && moreSheetModuleIds().includes(id)))
   );
 
   el("module-eyebrow").textContent = m.label;

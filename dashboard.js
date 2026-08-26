@@ -6,35 +6,30 @@
 
 window.renderDashboard = async function (container, sb) {
   const today = new Date();
-  const dateStr = today.toLocaleDateString("en-MY", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
 
-  // Every module that owns a Home card. Used to size the loading skeleton so it does
-  // not flash cards that are about to be filtered out as archived.
-  const CARD_IDS = ["week", "entertainment", "control", "research", "selfstudy",
-                    "hygiene", "gamedev", "finance", "thesis", "exercise"];
-  const skeletonCount = CARD_IDS.filter(
+  // The four modules that get a Home stat card. Used to size the loading skeleton so it
+  // does not flash cards that are about to be filtered out as archived.
+  const MODSTAT_IDS = ["week", "control", "finance", "exercise"];
+  const skeletonCount = MODSTAT_IDS.filter(
     (id) => !(window.dmicoIsArchived && window.dmicoIsArchived(id))
-  ).length || CARD_IDS.length;
+  ).length || MODSTAT_IDS.length;
 
   // Show skeletons while data loads
   container.innerHTML = `
-    <div class="dash-header">
-      <p class="dash-date">${dateStr}</p>
-      <p class="dash-sub">Here's where everything stands.</p>
-    </div>
     <div id="dash-now"></div>
     <div class="dash-board" id="dash-board">
       <div id="dash-focus"></div>
       <div id="dash-week"></div>
-      <div class="dash-grid" id="dash-grid">
-        ${Array.from({ length: skeletonCount }).map(() => `
-          <div class="dash-card dash-card--loading">
-            <div class="dash-skel"></div>
-            <div class="dash-skel dash-skel--short"></div>
-            <div class="dash-skel dash-skel--short"></div>
-          </div>`).join("")}
+      <div class="dash-modstats">
+        <div class="dash-modstats-eyebrow">(modules)</div>
+        <div class="dash-modstat-grid" id="dash-grid">
+          ${Array.from({ length: skeletonCount }).map(() => `
+            <div class="dash-modstat dash-modstat--loading">
+              <div class="dash-skel dash-skel--short"></div>
+              <div class="dash-skel"></div>
+              <div class="dash-skel dash-skel--short"></div>
+            </div>`).join("")}
+        </div>
       </div>
     </div>`;
 
@@ -56,38 +51,16 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [research, exams, chores, supplies, projects, devlog, expenses, goals, thesisChapters, thisMonthIncome, thisMonthSurplus, proposalRes, weightLogs, exerciseProfile, weekCalRes, entLibRes, cdRes] =
+  const [exams, chores, expenses, goals, proposalRes, weightLogs, exerciseProfile, weekCalRes, anchRes, adhRes] =
     await Promise.all([
-      sb.from("research_papers")
-        .select("title, created_at", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .limit(1),
       sb.from("study_exams")
         .select("title, exam_date")
         .gte("exam_date", todayISO)
         .order("exam_date", { ascending: true })
         .limit(1),
       sb.from("hygiene_items").select("name, last_done, interval_days"),
-      sb.from("hygiene_products").select("name, status"),
-      sb.from("gamedev_projects")
-        .select("id", { count: "exact" })
-        .eq("status", "active"),
-      sb.from("gamedev_logs")
-        .select("logged_at")
-        .order("logged_at", { ascending: false })
-        .limit(1),
       sb.from("finance_expenses").select("amount, logged_at"),
       sb.from("finance_goals").select("label, target, current"),
-      sb.from("thesis_chapters").select("title, target_words, current_words, status"),
-      sb.from("finance_income")
-        .select("amount")
-        .eq("year", today.getFullYear())
-        .eq("month", today.getMonth())
-        .limit(1),
-      sb.from("finance_surplus")
-        .select("amount")
-        .gte("logged_at", new Date(today.getFullYear(), today.getMonth(), 1).toISOString())
-        .lt("logged_at", new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString()),
       sb.from("kv_store").select("value").eq("key", "pending_proposal").limit(1),
       sb.from("weight_logs")
         .select("weight_kg, logged_at")
@@ -98,21 +71,18 @@ window.renderDashboard = async function (container, sb) {
       // Calendar vNext Item 3: the bot's resolved week (anchors + focus +
       // entertainment), snapshotted into kv since the frontend has no GCal creds.
       sb.from("kv_store").select("value").eq("key", "week_calendar").limit(1),
-      sb.from("kv_store").select("value").eq("key", "entertainment_library").limit(1),
-      sb.from("kv_store").select("value").eq("key", "countdown_data").limit(1),
+      // Control's routine anchors + today's check-in history, for the "anchors held" stat.
+      sb.from("kv_store").select("value").eq("key", "routine_anchors").limit(1),
+      sb.from("kv_store").select("value").eq("key", "routine_adherence").limit(1),
     ]);
 
-  // ── Research ───────────────────────────────────────────────
-  const paperCount = research.count ?? research.data?.length ?? 0;
-  const latestPaper = research.data?.[0]?.title ?? null;
-
-  // ── Self-study ─────────────────────────────────────────────
+  // ── Self-study (feeds the focus card's "today" priority line) ───────────
   const nextExam = exams.data?.[0] ?? null;
   const daysToExam = nextExam
     ? Math.ceil((new Date(nextExam.exam_date) - today) / 86400000)
     : null;
 
-  // ── Hygiene ────────────────────────────────────────────────
+  // ── Hygiene (feeds the focus card's "today" priority line) ──────────────
   const now = Date.now();
   const overdueChores = (chores.data ?? [])
     .filter((c) => c.last_done && c.interval_days)
@@ -126,17 +96,6 @@ window.renderDashboard = async function (container, sb) {
     .filter((c) => c.daysOver > 0)
     .sort((a, b) => b.daysOver - a.daysOver);
   const worstChore = overdueChores[0] ?? null;
-  const lowSupplies = (supplies.data ?? []).filter((s) => {
-    const st = String(s.status || "").toLowerCase();
-    return st === "low" || st === "empty" || st === "out";
-  }).length;
-
-  // ── Game Dev ───────────────────────────────────────────────
-  const activeCount = projects.count ?? projects.data?.length ?? 0;
-  const lastLogAt = devlog.data?.[0]?.logged_at ?? null;
-  const daysAgoLog = lastLogAt
-    ? Math.floor((now - new Date(lastLogAt).getTime()) / 86400000)
-    : null;
 
   // ── Finance ────────────────────────────────────────────────
   const yr = today.getFullYear();
@@ -153,13 +112,6 @@ window.renderDashboard = async function (container, sb) {
       pct: g.target > 0 ? Math.round((g.current / g.target) * 100) : 0,
     }))
     .sort((a, b) => b.pct - a.pct)[0] ?? null;
-
-  // ── Thesis ─────────────────────────────────────────────────
-  const chapters = thesisChapters.data ?? [];
-  const totalTarget  = chapters.reduce((s, c) => s + (c.target_words || 0), 0);
-  const totalCurrent = chapters.reduce((s, c) => s + (c.current_words || 0), 0);
-  const thesisPct    = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
-  const doneChapters = chapters.filter((c) => c.status === "done").length;
 
   // ── Exercise ───────────────────────────────────────────────
   const wlogs   = weightLogs.data ?? [];
@@ -182,223 +134,90 @@ window.renderDashboard = async function (container, sb) {
   const budgetRaw   = localStorage.getItem("dmico-hub-monthly-budget");
   const budgetLimit = budgetRaw ? parseFloat(budgetRaw) : null;
   const overBudget  = budgetLimit != null && monthSpend > budgetLimit;
-  const nearBudget  = budgetLimit != null && !overBudget && monthSpend / budgetLimit >= 0.8;
-  const fmtRM = (n) => "RM " + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtRMShort = (n) => "RM " + Math.round(Number(n)).toLocaleString();
 
-  // Savings rate from this month's income + any surplus (if logged).
-  const incomeAmt     = thisMonthIncome?.data?.[0] ? Number(thisMonthIncome.data[0].amount) : null;
-  const surplusAmt    = (thisMonthSurplus?.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
-  const totalIncomeAmt = incomeAmt !== null ? incomeAmt + surplusAmt : (surplusAmt > 0 ? surplusAmt : null);
-  const netSavings    = totalIncomeAmt !== null ? totalIncomeAmt - monthSpend : null;
-  const savingsPct    = totalIncomeAmt ? Math.round((netSavings / totalIncomeAmt) * 100) : null;
-
-  // ── Week + Entertainment signals (from the kv snapshots) ────
+  // ── Week signal (from the kv snapshot) ───────────────────────
   const wcal = weekCalRes?.data?.[0]?.value ?? null;
   const wcEvents = (wcal && Array.isArray(wcal.events)) ? wcal.events : [];
   const todaysBlocks = wcEvents.filter((e) => e.date === todayISO);
-  const entSessions = wcEvents.filter((e) => e.type === "entertainment");
-  const nextEnt = entSessions
-    .filter((e) => e.date >= todayISO)
-    .sort((a, b) => (a.date + (a.start || "")).localeCompare(b.date + (b.start || "")))[0];
-  const entLib = entLibRes?.data?.[0]?.value ?? null;
-  const backlogCount = (entLib && Array.isArray(entLib.items))
-    ? entLib.items.filter((i) => (i.status || "backlog") === "backlog").length : 0;
-  const dayShort = (iso) => {
-    try { return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
-    catch (_) { return iso; }
-  };
-  const cdList = (cdRes?.data?.[0]?.value?.countdowns) || [];
-  const nextCd = cdList.filter((c) => c.date >= todayISO).sort((a, b) => (a.date || "").localeCompare(b.date || ""))[0];
-  const cdDays = nextCd ? Math.ceil((new Date(nextCd.date + "T00:00:00") - new Date(new Date().setHours(0, 0, 0, 0))) / 86400000) : null;
 
-  // ── Build cards ────────────────────────────────────────────
-  const cards = [
+  // ── Control signal: today's routine anchors + check-in state ────────────
+  const MANUAL_CHECKIN_IDS = ["water", "screens"];
+  const ctlAnchors = anchRes?.data?.[0]?.value?.anchors;
+  const pyWeekday = (today.getDay() + 6) % 7; // JS Sun=0 -> Control's Mon=0
+  const scheduledAnchorIds = (Array.isArray(ctlAnchors) ? ctlAnchors : [])
+    .filter((a) => (a.days || []).includes(pyWeekday))
+    .map((a) => a.id)
+    .concat(MANUAL_CHECKIN_IDS);
+  const doneToday = adhRes?.data?.[0]?.value?.history?.[todayISO] || {};
+  const anchorsHeld = scheduledAnchorIds.filter((id) => doneToday[id] === true).length;
+  const anchorsScheduled = scheduledAnchorIds.length;
+
+  // ── Build the module strip ───────────────────────────────────────────────
+  // Four stats only (Week, Control, Finance, Exercise): Life and Curators already
+  // live in the "right now" state block above, and the rest are archived. Every
+  // number here is real and derivable today; nothing is invented to fill the grid.
+  const modStats = [
     {
       id: "week",
-      icon: "🗓️",
       label: "Week",
-      primary: todaysBlocks.length ? `${todaysBlocks.length} today` : "Nothing today",
-      secondary: wcEvents.length ? `${wcEvents.length} blocks this week` : "No snapshot yet",
-      tone: todaysBlocks.length ? "default" : "dim",
-    },
-    {
-      id: "entertainment",
-      icon: "🍿",
-      label: "Entertainment",
-      primary: nextEnt
-        ? `Next: ${dayShort(nextEnt.date)} ${nextEnt.start || ""}`.trim()
-        : (entSessions.length ? "Sessions done" : "No sessions yet"),
-      secondary: backlogCount
-        ? `${backlogCount} in backlog`
-        : "Add games & movies",
-      tone: nextEnt ? "green" : "dim",
+      num: String(todaysBlocks.length),
+      unit: "",
+      sub: wcEvents.length ? `today · ${wcEvents.length} this week` : "no blocks scheduled",
+      over: false,
     },
     {
       id: "control",
-      icon: "⏳",
-      label: "Countdown",
-      primary: nextCd ? clip(nextCd.event, 22) : "No countdowns",
-      secondary: nextCd
-        ? (cdDays === 0 ? "today" : cdDays === 1 ? "tomorrow" : `${cdDays} days away`)
-        : "Add one in Control",
-      tone: nextCd ? (cdDays <= 7 ? "orange" : "default") : "dim",
-    },
-    {
-      id: "research",
-      icon: "📚",
-      label: "Research",
-      primary: `${paperCount} ${paperCount === 1 ? "paper" : "papers"}`,
-      secondary: latestPaper
-        ? `Latest: ${clip(latestPaper, 42)}`
-        : "No papers saved yet",
-      tone: paperCount > 0 ? "green" : "dim",
-    },
-    {
-      id: "selfstudy",
-      icon: "📖",
-      label: "Self-study",
-      primary: nextExam ? clip(nextExam.title, 30) : "No exams tracked",
-      secondary: nextExam
-        ? daysToExam <= 0
-          ? "Exam day!"
-          : daysToExam === 1
-          ? "Tomorrow"
-          : `${daysToExam} days away`
-        : "Add an exam to start the countdown",
-      tone:
-        daysToExam !== null && daysToExam <= 7
-          ? "orange"
-          : nextExam
-          ? "green"
-          : "dim",
-    },
-    {
-      id: "hygiene",
-      icon: "🧹",
-      label: "Hygiene",
-      primary: worstChore ? clip(worstChore.name, 30) : "All caught up",
-      secondary: worstChore
-        ? `${worstChore.daysOver}d overdue${
-            lowSupplies > 0 ? ` · ${lowSupplies} supply low` : ""
-          }`
-        : lowSupplies > 0
-        ? `${lowSupplies} supply running low`
-        : "Nothing needs attention",
-      tone: worstChore
-        ? worstChore.daysOver > 3
-          ? "orange"
-          : "yellow"
-        : "green",
-    },
-    {
-      id: "gamedev",
-      icon: "🎮",
-      label: "Game Dev",
-      primary: `${activeCount} active ${
-        activeCount === 1 ? "project" : "projects"
-      }`,
-      secondary:
-        daysAgoLog === null
-          ? "No devlog entries yet"
-          : daysAgoLog === 0
-          ? "Logged today"
-          : daysAgoLog === 1
-          ? "Last log: yesterday"
-          : `Last log: ${daysAgoLog}d ago`,
-      tone:
-        daysAgoLog !== null && daysAgoLog <= 3
-          ? "green"
-          : daysAgoLog !== null
-          ? "yellow"
-          : "dim",
+      label: "Control",
+      num: String(anchorsHeld),
+      unit: anchorsScheduled ? ` / ${anchorsScheduled}` : "",
+      sub: anchorsScheduled ? "anchors held today" : "no anchors set today",
+      over: false,
     },
     {
       id: "finance",
-      icon: "💰",
-      label: "Finance",
-      primary: budgetLimit
-        ? `${fmtRM(monthSpend)} of ${fmtRM(budgetLimit)}`
-        : `RM ${monthSpend.toFixed(2)} this month`,
-      secondary: netSavings !== null
-        ? netSavings >= 0
-          ? `Saved ${fmtRM(netSavings)} · ${savingsPct}% this month`
-          : `Deficit ${fmtRM(Math.abs(netSavings))} — over income`
-        : overBudget
-        ? `Over limit by ${fmtRM(monthSpend - budgetLimit)}`
-        : nearBudget
-        ? `${fmtRM(budgetLimit - monthSpend)} left — running close`
-        : topGoal
-        ? `${clip(topGoal.label, 24)}: ${topGoal.pct}% funded`
-        : budgetLimit
-        ? `${fmtRM(budgetLimit - monthSpend)} remaining`
-        : "Log allowance in Overview to track savings",
-      tone: netSavings !== null
-        ? netSavings < 0 ? "orange" : savingsPct >= 20 ? "green" : "yellow"
-        : overBudget ? "orange" : nearBudget ? "yellow" : topGoal?.pct >= 100 ? "green" : topGoal ? "default" : "dim",
-    },
-    {
-      id: "thesis",
-      icon: "📝",
-      label: "Thesis",
-      primary: chapters.length === 0
-        ? "No chapters yet"
-        : `${totalCurrent.toLocaleString()} / ${totalTarget.toLocaleString()} words`,
-      secondary: chapters.length === 0
-        ? "Add your first chapter to get started"
-        : `${thesisPct}% complete · ${doneChapters} of ${chapters.length} chapter${chapters.length === 1 ? "" : "s"} done`,
-      tone: chapters.length === 0
-        ? "dim"
-        : thesisPct >= 100
-        ? "green"
-        : thesisPct >= 50
-        ? "yellow"
-        : "default",
+      label: overBudget ? "Finance · over" : "Finance",
+      num: fmtRMShort(monthSpend),
+      unit: "",
+      sub: budgetLimit ? `of ${fmtRMShort(budgetLimit)} limit` : "no limit set",
+      over: overBudget,
     },
     {
       id: "exercise",
-      icon: "🏃",
       label: "Exercise",
-      primary: latestW != null ? kgFmt(latestW) : "No weigh-ins",
-      secondary: latestW == null
-        ? "Log your weight to start a trend"
+      num: latestW != null ? kgFmt(latestW) : "—",
+      unit: "",
+      sub: latestW == null
+        ? "no weigh-ins yet"
         : exGoal == null
         ? (exTrend != null
-            ? `${exTrend < 0 ? "▼" : exTrend > 0 ? "▲" : "→"} ${kgFmt(Math.abs(exTrend))} over ${wlogs.length} logs`
-            : "First weigh-in logged · set a goal")
+            ? `${exTrend < 0 ? "▼" : exTrend > 0 ? "▲" : "→"} ${kgFmt(Math.abs(exTrend))} vs first log`
+            : "first weigh-in logged")
         : exReached
-        ? `Goal weight reached 🎉`
-        : `${kgFmt(exRemaining)} to your ${kgFmt(exGoal)} goal`,
-      tone: latestW == null
-        ? "dim"
-        : exGoal == null
-        ? "green"
-        : exReached
-        ? "green"
-        : "yellow",
+        ? "goal weight reached"
+        : `${kgFmt(exRemaining)} to goal`,
+      over: false,
     },
   ];
 
-  // Archived modules lose their Home card too, so the rail and the dashboard always
+  // Archived modules lose their Home stat too, so the rail and the dashboard always
   // agree. app.js owns the archived flag; we just ask it.
-  const visibleCards = cards.filter(
+  const visibleStats = modStats.filter(
     (c) => !(window.dmicoIsArchived && window.dmicoIsArchived(c.id))
   );
 
-  document.getElementById("dash-grid").innerHTML = visibleCards
+  document.getElementById("dash-grid").innerHTML = visibleStats
     .map(
       (c, i) => `
-    <button class="dash-card dash-card--${c.tone}" data-module="${c.id}" style="animation-delay:${i * 55}ms">
-      <span class="dash-card-icon">${c.icon}</span>
-      <span class="dash-card-label">${c.label}</span>
-      <span class="dash-card-primary">${c.primary}</span>
-      <span class="dash-card-secondary">${c.secondary}</span>
+    <button class="dash-modstat${c.over ? " over" : ""}" data-module="${c.id}" style="animation-delay:${i * 55}ms">
+      <span class="dash-modstat-label">${c.label}</span>
+      <span class="dash-modstat-num">${c.num}${c.unit ? `<small>${c.unit}</small>` : ""}</span>
+      <span class="dash-modstat-sub">${c.sub}</span>
     </button>`
     )
     .join("");
 
-  animateCounts(document.getElementById("dash-grid"));
-
-  document.getElementById("dash-grid").querySelectorAll(".dash-card").forEach((btn) => {
+  document.getElementById("dash-grid").querySelectorAll(".dash-modstat").forEach((btn) => {
     btn.addEventListener("click", () => window.__openModule?.(btn.dataset.module));
   });
 
@@ -510,38 +329,3 @@ window.renderDashboard = async function (container, sb) {
       </div>`;
   }
 };
-
-function clip(str, len) {
-  if (!str) return "";
-  return str.length > len ? str.slice(0, len - 1) + "…" : str;
-}
-
-/* Count the first number in each card's primary line up from zero on load.
-   Preserves prefixes/suffixes ("RM 1,200 saved" animates the 1,200). Skips
-   entirely under reduced-motion. */
-function animateCounts(scope) {
-  if (!scope) return;
-  if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  scope.querySelectorAll(".dash-card-primary").forEach((node) => {
-    const full = node.textContent;
-    const m = full.match(/[\d][\d,]*(\.\d+)?/);
-    if (!m) return;
-    const target = parseFloat(m[0].replace(/,/g, ""));
-    if (!isFinite(target) || target <= 0) return;
-    const hasComma = m[0].indexOf(",") !== -1;
-    const decimals = m[0].indexOf(".") !== -1 ? (m[0].split(".")[1] || "").length : 0;
-    const fmt = (n) => {
-      let s = decimals ? n.toFixed(decimals) : String(Math.round(n));
-      return hasComma ? Number(s).toLocaleString() : s;
-    };
-    const start = performance.now(), dur = 750;
-    const tick = (now) => {
-      const t = Math.min(1, (now - start) / dur);
-      const eased = 1 - Math.pow(1 - t, 3);
-      node.textContent = full.replace(m[0], fmt(target * eased));
-      if (t < 1) requestAnimationFrame(tick);
-      else node.textContent = full;
-    };
-    requestAnimationFrame(tick);
-  });
-}

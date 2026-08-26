@@ -249,11 +249,15 @@ input, button { font-family: inherit; }
 
 .lantern:hover { background: var(--paper-deep); color: var(--ink); }
 
+/* Neutral is the default and the most common state: every nav slot carries one
+   dot, and it stays this quiet grey unless the attention overlay below (warm/lit,
+   painted by dmicoRefreshRail) says otherwise. Only orange ever breathes. */
 .lantern .dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   background: var(--ink-faint);
+  opacity: 0.5;
   flex-shrink: 0;
 }
 
@@ -265,16 +269,13 @@ input, button { font-family: inherit; }
   color: var(--ink-faint);
 }
 
-/* lit = the active, ready module: warm lantern glow */
+/* lit = the module is built and reachable. This no longer colours the dot (that
+   is the attention state's job, see .lantern-attn-* in app.js); it just makes
+   the row itself feel available. */
 .lantern.lit {
   background: var(--surface-2);
   border-color: var(--line);
   color: var(--ink);
-}
-.lantern.lit .dot {
-  background: var(--lantern);
-  box-shadow: 0 0 0 4px var(--lantern-glow);
-  animation: breathe 4.5s ease-in-out infinite;
 }
 .lantern.lit .state { color: var(--accent-deep); }
 
@@ -294,6 +295,159 @@ input, button { font-family: inherit; }
 }
 
 .rail-foot { padding: 0 6px; }
+
+/* ── Mobile bottom bar (design brief 8.1) ─────────────────────
+   Hidden on desktop; the 720px breakpoint above swaps it in for the rail.
+   Same dim/warm/lit dot language, just laid out for a thumb. ───────────── */
+
+.bottom-bar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  height: 64px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  align-items: center;
+  padding: 0 4px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bbar-item {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.bbar-icon { display: flex; }
+.bbar-item.current .bbar-icon { color: var(--ink); }
+
+.bbar-label {
+  font-size: 10.5px;
+  color: var(--ink-soft);
+}
+.bbar-item.current .bbar-label { color: var(--ink); font-weight: 700; }
+
+.bbar-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  opacity: 0.45;
+}
+.bbar-item.current .bbar-dot {
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink);
+  opacity: 1;
+}
+.bbar-dot.bbar-dot-warm { background: var(--amber); opacity: 0.9; }
+.bbar-dot.bbar-dot-lit {
+  width: 6px; height: 6px;
+  background: var(--lantern);
+  opacity: 1;
+  animation: breathe-sm 4.5s ease-in-out infinite;
+}
+@keyframes breathe-sm {
+  0%, 100% { box-shadow: 0 0 0 3px var(--lantern-glow); }
+  50%      { box-shadow: 0 0 0 6px rgba(196, 102, 31, 0.16); }
+}
+
+/* ── More sheet ────────────────────────────────────────────── */
+
+.more-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+.more-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(69, 48, 30, 0.32);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.more-sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--paper);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  box-shadow: var(--shadow-drag, 0 6px 22px rgba(69, 48, 30, 0.22));
+  padding: 10px 10px calc(18px + env(safe-area-inset-bottom, 0));
+  transform: translateY(100%);
+  transition: transform 0.22s ease-out;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.more-sheet.open .more-sheet-backdrop { opacity: 1; }
+.more-sheet.open .more-sheet-panel { transform: translateY(0); }
+
+.more-sheet-grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  margin: 6px auto 14px;
+}
+
+.more-sheet-list { display: flex; flex-direction: column; gap: 2px; }
+
+.more-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 14px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.more-sheet-row:hover { background: var(--paper-deep); }
+
+.more-sheet-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.more-sheet-dot.bbar-dot-warm { background: var(--amber); opacity: 0.9; }
+.more-sheet-dot.bbar-dot-lit {
+  background: var(--lantern);
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--lantern-glow);
+  animation: breathe-sm 4.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbar-dot-lit, .more-sheet-dot.bbar-dot-lit { animation: none !important; }
+}
+
+@media (min-width: 721px) {
+  .more-sheet { display: none !important; }
+}
 
 .btn-ghost {
   width: 100%;
@@ -357,10 +511,6 @@ input, button { font-family: inherit; }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes breathe {
-  0%, 100% { box-shadow: 0 0 0 3px var(--lantern-glow); }
-  50%      { box-shadow: 0 0 0 6px rgba(196, 102, 31, 0.16); }
-}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -369,21 +519,11 @@ input, button { font-family: inherit; }
 /* ── Responsive ────────────────────────────────────────────── */
 
 @media (max-width: 720px) {
-  .app { grid-template-columns: 1fr; }
-  .rail {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-    padding: 16px;
-    gap: 12px;
-  }
-  .rail-head { flex: 1; }
-  .modules { flex-direction: row; flex-wrap: wrap; flex-basis: 100%; }
-  .lantern { width: auto; }
-  .lantern .state { display: none; }
-  .rail-foot { width: auto; }
+  /* The rail is replaced by the fixed bottom bar below (design brief 8.1); the
+     grid collapses to a single column and the stage leaves room at the foot. */
+  .app { grid-template-columns: 1fr; padding-bottom: 78px; }
+  .rail { display: none; }
+  .bottom-bar { display: flex; }
   .stage { padding: 28px 22px; }
 }
 
@@ -397,7 +537,7 @@ input, button { font-family: inherit; }
 
   /* Comfortable tap targets. */
   .r-tab, .r-mini, .r-mini-select, .btn-primary, .btn-ghost,
-  .dash-card, .photo-add { min-height: 42px; }
+  .dash-modstat, .photo-add { min-height: 42px; }
   .r-mini, .r-mini-select { padding: 10px 12px; }
 
   /* Keep charts and any SVG inside the viewport. */
@@ -687,99 +827,73 @@ input, button { font-family: inherit; }
   margin-bottom: 14px;
 }
 
-/* ── Dashboard (.dash-*) ───────────────────────────────────── */
+/* ── Dashboard module strip (.dash-modstat-*) ────────────────
+   Four honest stats (Week, Control, Finance, Exercise). Full bordered cards on
+   desktop; on phones the grid collapses into a single divided strip so the
+   whole screen fits in about a scroll and a half. ───────────────────────── */
 
-.dash-header {
-  margin-bottom: 28px;
-}
+.dash-modstats { margin-top: 44px; }
 
-.dash-date {
-  font-family: var(--display);
-  font-size: 0.95rem;
-  font-weight: 500;
+.dash-modstats-eyebrow {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--ink-soft);
-  margin: 0 0 3px;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  margin-bottom: 14px;
 }
 
-.dash-sub {
-  font-size: 0.82rem;
-  color: var(--ink-faint);
-  margin: 0;
-}
-
-.dash-grid {
+.dash-modstat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
 }
 
-.dash-card {
+.dash-modstat {
   display: flex;
   flex-direction: column;
-  gap: 3px;
   text-align: left;
-  padding: 16px 18px 16px 20px;
+  padding: 16px 18px;
   background: var(--surface-2);
-  border: 1.5px solid var(--line);
-  border-left: 4px solid var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.15s;
   font-family: var(--body);
   color: var(--ink);
+  transition: box-shadow 0.15s, transform 0.15s;
 }
 
-.dash-card:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
-}
+.dash-modstat:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.dash-modstat:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-wash); }
 
-.dash-card:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--accent-wash);
-}
-
-/* Status tone: left border accent */
-.dash-card--green  { border-left-color: var(--accent); }
-.dash-card--orange { border-left-color: var(--lantern); }
-.dash-card--yellow { border-left-color: #B08A2A; }
-.dash-card--dim    { border-left-color: var(--line); opacity: 0.7; }
-.dash-card--default { border-left-color: var(--line); }
-
-.dash-card-icon {
-  font-size: 1.3rem;
-  line-height: 1;
-  margin-bottom: 7px;
-}
-
-.dash-card-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+.dash-modstat-label {
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 2px;
+  color: var(--ink-faint);
+  font-weight: 700;
 }
+.dash-modstat.over .dash-modstat-label { color: var(--clay); }
 
-.dash-card-primary {
-  font-size: 0.92rem;
-  font-weight: 600;
+.dash-modstat-num {
+  font-family: var(--display);
+  font-size: 1.9rem;
+  font-weight: 700;
   color: var(--ink);
-  line-height: 1.3;
+  margin-top: 10px;
+  line-height: 1;
 }
+.dash-modstat-num small { font-size: 1rem; color: var(--ink-faint); font-weight: 500; }
+.dash-modstat.over .dash-modstat-num { color: var(--clay); }
 
-.dash-card-secondary {
-  font-size: 0.77rem;
+.dash-modstat-sub {
+  font-size: 0.78rem;
   color: var(--ink-soft);
-  line-height: 1.45;
+  margin-top: 7px;
 }
 
 /* Loading skeleton */
-.dash-card--loading {
-  pointer-events: none;
-  border-left-color: var(--line);
-}
+.dash-modstat--loading { pointer-events: none; cursor: default; }
 
 .dash-skel {
   height: 11px;
@@ -796,6 +910,30 @@ input, button { font-family: inherit; }
   50%       { opacity: 1; }
 }
 
+@media (max-width: 720px) {
+  .dash-modstat-grid {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .dash-modstat {
+    flex: 1 1 0;
+    min-width: 0;
+    border: none;
+    border-left: 1px solid var(--line);
+    border-radius: 0;
+    padding: 12px 6px;
+    align-items: center;
+    text-align: center;
+  }
+  .dash-modstat:first-child { border-left: none; }
+  .dash-modstat:hover { transform: none; box-shadow: none; }
+  .dash-modstat-num { font-size: 1.2rem; margin-top: 5px; }
+  .dash-modstat-sub { font-size: 0.64rem; margin-top: 4px; }
+}
+
 /* ── Interaction polish — playful but calm. Reduced-motion safe. ───── */
 @keyframes dash-card-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -803,10 +941,6 @@ input, button { font-family: inherit; }
 }
 @keyframes lantern-pop {
   0% { transform: none; } 45% { transform: scale(1.045); } 100% { transform: none; }
-}
-@keyframes lantern-glow-swell {
-  0%, 100% { box-shadow: 0 0 0 4px var(--lantern-glow); }
-  50%      { box-shadow: 0 0 0 8px rgba(196, 102, 31, 0.18); }
 }
 
 /* Tactile buttons: hover lift on the primary action, springy press on all. */
@@ -817,18 +951,13 @@ input, button { font-family: inherit; }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(95, 111, 82, 0.26); }
 .btn-primary:active, .btn-ghost:active, .r-mini:active, .r-btn:active { transform: translateY(1px) scale(.985); }
 
-/* Dashboard cards: stagger in, lift on hover, press, and the accent bar grows. */
-.dash-card {
+/* Module strip: stagger in on Home, press on tap. */
+.dash-modstat {
   animation: dash-card-in .5s cubic-bezier(.22,.61,.36,1) both;
-  transition: transform .16s ease, box-shadow .2s ease, border-left-width .16s ease;
 }
-.dash-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(69, 48, 30, 0.13); }
-.dash-card:active { transform: translateY(-1px) scale(.99); }
-.dash-card--green:hover, .dash-card--orange:hover,
-.dash-card--yellow:hover, .dash-card--default:hover { border-left-width: 5px; }
+.dash-modstat:active { transform: translateY(-1px) scale(.99); }
 
-/* Lanterns: glow swells on hover, a soft pop when selected. */
-.lantern.lit:hover .dot { animation: lantern-glow-swell 1.6s ease-in-out infinite; }
+/* Lanterns: a soft pop when selected. */
 .lantern.current { animation: lantern-pop .4s ease; }
 
 /* Tabs: smooth state change with a small press. */
@@ -836,9 +965,9 @@ input, button { font-family: inherit; }
 .r-tab:active { transform: translateY(1px); }
 
 @media (prefers-reduced-motion: reduce) {
-  .dash-card, .lantern.current, .lantern.lit:hover .dot { animation: none !important; }
+  .dash-modstat, .lantern.current { animation: none !important; }
   .btn-primary:hover, .btn-primary:active, .btn-ghost:active, .r-mini:active, .r-btn:active,
-  .dash-card:hover, .dash-card:active, .r-tab:active { transform: none !important; }
+  .dash-modstat:hover, .dash-modstat:active, .r-tab:active { transform: none !important; }
 }
 
 /* ── Sliding tab indicator (interactions.js positions it) ──────────── */
