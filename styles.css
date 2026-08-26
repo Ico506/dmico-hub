@@ -3690,3 +3690,75 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   padding: 0 2px;
   margin-left: 2px;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   SHARED MOBILE PASS (2026-08-25)
+   The Home redesign made the shell responsive, but the module interiors
+   (Finance, Life, Week, Control, Curators, Exercise) had no mobile CSS at
+   all, so they rendered at desktop proportions on a phone. Rather than a
+   manual desktop/mobile toggle (which duplicates what the browser already
+   knows and can fall out of sync), this targets the shared class families
+   every module reuses, so one block fixes all of them at once.
+
+   This is a legibility and reach pass, not a redesign. Per-module layout
+   is settled screen by screen, starting with Finance.
+   ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+
+  /* Two-column form rows collapse. This is the single biggest offender:
+     side-by-side fields on a 390px screen leave neither usable. */
+  .r-row2 { grid-template-columns: 1fr !important; display: grid; gap: 0.6rem; }
+
+  /* Fields and their inputs go full width, and inputs are never smaller
+     than 16px, because a smaller font makes mobile browsers zoom on focus. */
+  .r-field { width: 100%; }
+  .r-field input,
+  .r-field select,
+  .r-field textarea,
+  .cur-area, .cur-input,
+  .fin-ov-income-input, .fin-ov-income-notes-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: max(16px, 1rem);
+  }
+
+  /* Tab bars scroll sideways instead of wrapping into a broken stack. */
+  .r-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .r-tabs::-webkit-scrollbar { display: none; }
+  .r-tab { flex: 0 0 auto; scroll-snap-align: start; }
+
+  /* Rows that pair inputs with buttons: stack and fill rather than squash. */
+  .r-form, .r-actions, .r-save-row, .r-searchbar,
+  .fin-ov-surplus-form-row, .fin-ov-income-form, .subs-add, .sv-add {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .r-searchbar input, .subs-add input, .sv-add input,
+  .fin-ov-surplus-form-row input { flex: 1 1 100%; min-width: 0; }
+
+  /* Touch targets. 44px is the accepted floor for a reliable tap. */
+  .btn-primary, .r-btn, .r-mini, .now-row, .r-tab {
+    min-height: 44px;
+  }
+  .r-mini, .r-tab { padding-left: 0.75rem; padding-right: 0.75rem; }
+
+  /* Stat clusters and the budget-rule grid go single column. */
+  .fin-ov-stat-row, .fin-ov-rule-grid { flex-direction: column; }
+  .fin-ov-rule-grid { display: flex; gap: 0.9rem; }
+  .fin-ov-stat { width: 100%; }
+
+  /* Cards stop trying to sit side by side. */
+  .r-card { width: 100%; box-sizing: border-box; }
+  .r-list { gap: 0.6rem; }
+
+  /* Long words and URLs (paper titles, digest links) must not force the
+     whole page to scroll sideways. */
+  .r-title, .r-abstract, .r-meta, .now-row span { overflow-wrap: anywhere; }
+}
