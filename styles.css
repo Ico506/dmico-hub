@@ -1900,10 +1900,12 @@ input, button { font-family: inherit; }
 }
 
 .fin-goal-rank {
-  font-size: 0.8rem;
+  font-family: var(--display);
+  font-size: 0.78rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--ink-faint);
-  min-width: 28px;
+  min-width: 24px;
   flex-shrink: 0;
   padding-top: 2px;
 }
@@ -3010,13 +3012,11 @@ a.fin-wl-name:hover { color: var(--lantern); text-decoration: underline; }
    ───────────────────────────────────────────────────────────── */
 
 /* Section card — shared container for every Overview block */
-.fin-ov-section {
-  background: var(--surface-2);
-  border: 1.5px solid var(--line);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  margin-bottom: 14px;
-}
+/* Typographic hierarchy replaces card borders: a section is a flowing block of
+   space and type, not a boxed card. Spacing between sections comes from the
+   26px flex gap on .fin-ov-col-left / .fin-ov-col-right, so this class carries
+   no box chrome of its own. */
+.fin-ov-section { min-width: 0; }
 
 .fin-ov-section-head {
   display: flex;
@@ -3762,3 +3762,349 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
      whole page to scroll sideways. */
   .r-title, .r-abstract, .r-meta, .now-row span { overflow-wrap: anywhere; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   WORKING-SCREEN LANGUAGE (Finance redesign, 2026-08-27)
+   Settled here first; the other five modules (Week, Life, Control,
+   Curators, Exercise) inherit these shared `r-` classes as they get
+   their own passes. Finance-specific pieces stay `fin-`.
+   ───────────────────────────────────────────────────────────── */
+
+/* Eyebrow: the small tracked uppercase parenthetical section label.
+   Aliases the older fin-ov-section-label so existing markup keeps working. */
+.r-eyebrow, .fin-ov-section-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.r-eyebrow-faint { color: var(--ink-faint); }
+
+/* Micro-label: the tiny uppercase tag above a value or list-row's content. */
+.r-micro {
+  font-size: 0.52rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 700;
+}
+
+/* The hero: one ink number per screen. Never orange when healthy; colour
+   only appears here when the state is genuinely wrong. */
+.r-hero-row { display: flex; align-items: flex-end; gap: 10px; margin-top: 10px; }
+.r-hero-unit {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink-soft);
+  padding-bottom: 10px;
+}
+.r-hero-num {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 56px;
+  line-height: 0.84;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+.r-hero-num.r-hero-warn { color: var(--clay); }
+.r-hero-cents { font-size: 26px; color: var(--ink-soft); }
+.r-hero-caption { font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; }
+.r-hero-track {
+  margin-top: 12px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  overflow: hidden;
+}
+.r-hero-fill { height: 100%; background: var(--accent); border-radius: var(--radius-pill); }
+.r-hero-fill.r-hero-fill-warn { background: var(--clay); }
+.r-hero-note { font-size: 12.5px; color: var(--ink-faint); margin-top: 8px; }
+
+@media (min-width: 640px) {
+  .r-hero-num { font-size: 72px; }
+  .r-hero-unit { font-size: 17px; padding-bottom: 13px; }
+  .r-hero-cents { font-size: 34px; }
+}
+
+/* The well: one row of micro-label + value cells divided by hairlines,
+   never a grid of equal-weight cards. */
+.r-well {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-deep);
+}
+.r-well-cell { padding: 13px 14px; }
+.r-well-cell + .r-well-cell { border-left: 1px solid var(--line); }
+.r-well-val {
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 6px;
+  line-height: 1;
+}
+.r-well-val.r-well-val-accent { color: var(--accent-deep); }
+.r-well-val.r-well-val-warn { color: var(--clay); }
+
+/* List rows: hairline-separated text, not cards. Micro-label, content,
+   right-aligned amount and date, delete last and quiet. */
+.r-row-list { margin-top: 10px; border-top: 1px solid var(--line); }
+.r-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.r-row-main { flex: 1 1 auto; min-width: 0; }
+.r-row-content { font-size: 14px; color: var(--ink); margin-top: 3px; overflow-wrap: break-word; line-height: 1.45; }
+.r-row-side { flex: 0 0 auto; text-align: right; }
+.r-row-amt { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--ink); }
+.r-row-date { font-size: 11.5px; color: var(--ink-faint); margin-top: 3px; }
+.r-row-del {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -6px -8px -6px 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.r-row-del:hover { background: rgba(138, 63, 30, 0.12); color: var(--clay); }
+.r-row-heading {
+  padding: 16px 0 4px;
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 700;
+}
+/* Delete stays quiet until the row is hovered, on pointers that can hover.
+   Touch devices keep it faintly visible since there is no hover to reveal it. */
+@media (hover: hover) and (pointer: fine) {
+  .r-row-del { opacity: 0; }
+  .r-row:hover .r-row-del, .r-row-del:focus-visible { opacity: 1; }
+}
+@media (hover: none), (pointer: coarse) {
+  .r-row-del { opacity: 0.55; }
+}
+
+/* Empty-state skeleton: hairline circle icon, one sentence, one olive
+   action, one faint reassurance. No accent colour, no alarm. */
+.r-empty2 { padding: 36px 2px 4px; }
+.r-empty2-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+.r-empty2-title {
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 18px;
+  line-height: 1.25;
+}
+.r-empty2-body { font-size: 14px; color: var(--ink-soft); margin-top: 8px; line-height: 1.55; max-width: 42ch; }
+.r-empty2-actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+.r-empty2-foot {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  line-height: 1.5;
+}
+
+/* Chip row with counts, e.g. category frequency on Overview. */
+.r-chip-count { color: var(--ink); font-weight: 700; margin-left: 4px; }
+
+/* Category picker chips reuse .r-chip / .r-chip.on from the Research module. */
+.fin-cat-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.fin-cat-chip-other {
+  border-style: dashed;
+}
+.fin-cat-custom-input { margin-top: 8px; }
+
+/* Amount field: the one large field in the form. */
+.fin-amt-field {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  min-height: 48px;
+}
+.fin-amt-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.fin-amt-prefix { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--ink-soft); }
+.fin-amt-input {
+  border: none;
+  background: transparent;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  width: 100%;
+  padding: 0;
+}
+.fin-amt-input:focus { outline: none; }
+.fin-amt-input::placeholder { color: var(--ink-faint); }
+
+/* Committed subscriptions list on Overview. */
+.fin-committed-total { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.fin-committed-amt { font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--ink); }
+.fin-committed-sub { font-size: 13px; color: var(--ink-soft); }
+.fin-committed-row { display: flex; align-items: center; gap: 9px; padding: 10px 0; border-top: 1px solid var(--line); }
+.fin-committed-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); opacity: 0.45; flex: 0 0 auto; }
+.fin-committed-dot.fin-dot-soon { background: var(--amber); opacity: 1; }
+.fin-committed-name { font-size: 13.5px; color: var(--ink); flex: 1 1 auto; min-width: 0; }
+.fin-committed-when { font-size: 12.5px; color: var(--ink-faint); flex: 0 0 auto; }
+.fin-committed-amtv { font-family: var(--display); font-size: 14px; font-weight: 700; color: var(--ink); flex: 0 0 auto; }
+.fin-committed-empty { font-size: 13px; color: var(--ink-faint); padding: 10px 0; }
+
+/* The saved-per-month chart: empty months are honest dashed outlines. */
+.fin-savings-chart { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; align-items: end; height: 118px; }
+.fin-savings-col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 6px; }
+.fin-savings-outline { height: 100%; border: 1px dashed var(--line); border-radius: 6px 6px 0 0; }
+.fin-savings-labels { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.fin-savings-labels span { font-size: 11px; color: var(--ink-faint); text-align: center; }
+.fin-savings-labels span.fin-savings-label-current { color: var(--ink); font-weight: 700; }
+
+/* Tabs "More" pill and its disclosure panel (a panel, not a menu). */
+.fin-more-btn { display: inline-flex; align-items: center; gap: 6px; }
+.fin-more-panel {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.fin-more-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 14px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  border-left: none; border-right: none; border-top: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--body);
+  color: inherit;
+}
+.fin-more-row:last-child { border-bottom: none; }
+.fin-more-row:hover { background: var(--accent-wash); }
+.fin-more-row-name { font-size: 14px; color: var(--ink); }
+.fin-more-row-sub { font-size: 12px; color: var(--ink-faint); }
+
+.r-hero-fill.r-hero-fill-close { background: var(--amber); }
+.r-hero-note.r-hero-note-close { color: var(--amber); }
+.r-hero-note.r-hero-note-warn  { color: var(--clay); }
+
+/* Bold the bucket name in a budget-rule bar head, keep the meta faint. */
+.fin-ov-rule-bar-head > span:first-child { font-weight: 700; color: var(--ink); font-size: 0.875rem; }
+
+/* Overview: two columns on desktop, one on mobile. */
+.fin-ov-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: start; }
+.fin-ov-col-left, .fin-ov-col-right { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.fin-ov-limit-edit { margin-top: 10px; }
+.fin-ov-saved-line { padding-top: 4px; }
+.fin-ov-exp-actions { margin-top: 14px; display: flex; gap: 10px; }
+/* The three-row expense preview is a mobile convenience; desktop already has more
+   room and shows the chart + committed list instead. */
+.fin-ov-mobile-only { display: none; }
+
+@media (max-width: 860px) {
+  .fin-ov-grid { grid-template-columns: 1fr; gap: 28px; }
+  .fin-ov-mobile-only { display: block; }
+}
+
+/* Expenses tab: form beside the list on desktop, form above list on mobile. */
+.fin-exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start; }
+.fin-exp-form-col, .fin-exp-list-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.fin-exp-form-card { display: flex; flex-direction: column; }
+.fin-field-block { margin-top: 14px; }
+.fin-field-block:first-of-type { margin-top: 14px; }
+.fin-field-block input, .fin-field-block select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-size: 15px;
+  box-sizing: border-box;
+}
+.fin-field-block input:focus-visible, .fin-field-block select:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash);
+}
+.fin-cat-custom-input { margin-top: 8px; }
+.fin-exp-more { margin-top: 14px; }
+.fin-exp-more > summary { list-style: none; }
+.fin-exp-more > summary::-webkit-details-marker { display: none; }
+.fin-exp-more[open] { padding-bottom: 4px; }
+.fin-exp-form-actions { margin-top: 18px; display: flex; gap: 10px; }
+.fin-exp-summary-toggle { margin: 4px 0 0; }
+.fin-exp-summary-toggle > summary { list-style: none; }
+.fin-exp-summary-toggle > summary::-webkit-details-marker { display: none; }
+.fin-exp-summary-toggle > summary::before { content: "▸  "; font-size: 0.7rem; }
+.fin-exp-summary-toggle[open] > summary::before { content: "▾  "; }
+
+@media (max-width: 860px) {
+  .fin-exp-grid { grid-template-columns: 1fr; }
+}
+
+/* Savings pools (populated state). */
+.sv-head { font-size: 0.95rem; color: var(--ink); margin: 4px 0 14px; }
+.sv-head b { font-family: var(--display); }
+.sv-head .sv-sub { font-size: 0.8rem; color: var(--ink-faint); }
+.sv-pool { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); margin-bottom: 10px; }
+.sv-pool-top { display: flex; align-items: center; gap: 10px; }
+.sv-pool-name { flex: 1; font-weight: 700; color: var(--ink); }
+.sv-pool-bal { font-family: var(--display); font-weight: 700; color: var(--ink); }
+.sv-bar-track { height: 8px; border-radius: var(--radius-pill); background: var(--line); margin: 10px 0 6px; overflow: hidden; }
+.sv-bar-fill { height: 100%; background: var(--accent); }
+.sv-target { font-size: 0.78rem; color: var(--ink-faint); }
+.sv-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.sv-hist { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.78rem; color: var(--ink-faint); }
+.sv-hist-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.sv-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.sv-add input {
+  font-family: var(--body);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 15px;
+}
+.sv-add #sv-name { flex: 1; min-width: 160px; }
+
+@media (max-width: 720px) {
+  .r-well { grid-template-columns: repeat(3, 1fr); }
+  .r-hero-num { font-size: 46px; }
+}
+

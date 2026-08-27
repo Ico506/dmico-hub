@@ -91,6 +91,8 @@
   }
 
   // ── Layout ─────────────────────────────────────────────────
+  const CHEVRON_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5l6 6 6-6"></path></svg>`;
+
   function render(container, sb) {
     SB   = sb;
     root = container;
@@ -101,12 +103,17 @@
             <button class="r-tab current" data-tab="overview">Overview</button>
             <button class="r-tab" data-tab="expenses">Expenses</button>
             <button class="r-tab" data-tab="goals">Goals</button>
-            <button class="r-tab" data-tab="subs">Subscriptions</button>
+            <button class="r-tab" data-tab="subs">Subscriptions<span id="fin-subs-dot" class="fin-committed-dot fin-dot-soon" style="margin-left:7px;display:inline-block;vertical-align:middle;" hidden></span></button>
             <button class="r-tab" data-tab="review">Review</button>
-            <button class="r-tab fin-tab-extra" data-tab="savings" style="order:97" hidden>Savings</button>
-            <button class="r-tab fin-tab-extra" data-tab="investments" style="order:98" hidden>Investments</button>
-            <button id="fin-more-tabs" class="r-mini fin-more-btn" style="order:99"
-                    title="Savings and Investments">More ▾</button>
+            <button id="fin-more-tabs" class="r-mini fin-more-btn" title="Savings and Investments">More ${CHEVRON_SVG}</button>
+          </div>
+          <div id="fin-more-panel" class="fin-more-panel" hidden>
+            <button class="r-tab fin-tab-extra fin-more-row" data-tab="savings">
+              <span class="fin-more-row-name">Savings</span><span class="fin-more-row-sub" id="fin-more-sav-sub">…</span>
+            </button>
+            <button class="r-tab fin-tab-extra fin-more-row" data-tab="investments">
+              <span class="fin-more-row-name">Investments</span><span class="fin-more-row-sub" id="fin-more-inv-sub">…</span>
+            </button>
           </div>
           <div id="fin-panel"></div>
         </div>
@@ -130,13 +137,15 @@
       })
     );
     // Savings and Investments are both empty and rarely opened, so they sit behind a
-    // "More" disclosure rather than taking permanent space in the tab bar. Nothing is
-    // removed; the toggle just reveals them, and the choice is remembered.
+    // "More" disclosure rather than taking permanent space in the tab bar. It is a
+    // panel, not a menu: each row states what it holds, so an empty tab is honest
+    // before it is tapped. Nothing is removed, the toggle just reveals the panel,
+    // and the choice is remembered.
     const moreBtn = el("fin-more-tabs");
-    const extras = () => root.querySelectorAll(".fin-tab-extra");
+    const morePanel = el("fin-more-panel");
     const setMore = (open) => {
-      extras().forEach((t) => { t.hidden = !open; });
-      if (moreBtn) moreBtn.textContent = open ? "Less ▴" : "More ▾";
+      if (morePanel) morePanel.hidden = !open;
+      if (moreBtn) moreBtn.innerHTML = (open ? "Less " : "More ") + CHEVRON_SVG;
       localStorage.setItem("dmico-fin-more", open ? "1" : "0");
     };
     setMore(localStorage.getItem("dmico-fin-more") === "1");
@@ -148,6 +157,35 @@
 
     renderOverview();
     renderWishlist(el("fin-wishlist"));
+    refreshMoreSubtext();
+    refreshSubsDot();
+  }
+
+  // "N pools" / "no pools yet" and "N holdings" / "nothing tracked" in the More panel.
+  async function refreshMoreSubtext() {
+    const [savData, invRes] = await Promise.all([
+      window.dmicoKvGet("finance_savings"),
+      SB.from("investments").select("id", { count: "exact", head: true }),
+    ]);
+    const pools = Array.isArray((savData || {}).pools) ? savData.pools : [];
+    const savSub = el("fin-more-sav-sub");
+    if (savSub) savSub.textContent = pools.length ? `${pools.length} pool${pools.length === 1 ? "" : "s"}` : "no pools yet";
+    const invCount = invRes && invRes.count ? invRes.count : 0;
+    const invSub = el("fin-more-inv-sub");
+    if (invSub) invSub.textContent = invCount ? `${invCount} holding${invCount === 1 ? "" : "s"}` : "nothing tracked";
+  }
+
+  // The one amber dot Finance carries in its own tab bar: a subscription renewing soon.
+  async function refreshSubsDot() {
+    const data = (await window.dmicoKvGet("finance_subscriptions")) || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    const soon = items.some((it) => {
+      if (!it.next) return false;
+      const days = Math.ceil((new Date(it.next) - new Date()) / 86400000);
+      return days >= 0 && days <= 3;
+    });
+    const dot = el("fin-subs-dot");
+    if (dot) dot.hidden = !soon;
   }
 
   // ════════════════════════════════════════════════════════════
@@ -252,54 +290,127 @@
     const ruleSavings = income - thisMonthExp;
     const budget  = getBudget();
 
+    // Needs/wants/unsorted split of this month's spending, via the category map. This
+    // is NOT "everything that isn't a subscription" — category_buckets is the only
+    // source of truth, and anything unmapped accumulates into split.unsorted.
+    const buckets = (cachedSettings && cachedSettings.category_buckets) || {};
+    const thisMonthRows = allExpenses.filter((e) => {
+      const d = new Date(e.logged_at);
+      return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+    });
+    const split = { need: 0, want: 0, unsorted: 0 };
+    thisMonthRows.forEach((e) => {
+      const cat = (e.category || "").trim().toLowerCase();
+      const b = buckets[cat];
+      if (b === "need") split.need += Number(e.amount);
+      else if (b === "want") split.want += Number(e.amount);
+      else split.unsorted += Number(e.amount);
+    });
+    const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+
+    // Subscriptions (kv) → the committed panel, and a faint "reserve this much for
+    // subs" marker on the Needs bar.
+    const subsData = (await window.dmicoKvGet("finance_subscriptions")) || {};
+    const subsItems = Array.isArray(subsData.items) ? subsData.items : [];
+    const subsMonthly = subsItems.reduce((s, it) => s + (it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0)), 0);
+
+    // Hero: money left this month against the spending limit. Days left counts what
+    // remains in the calendar month, today excluded.
+    const daysInMonth = new Date(thisYear, thisMonth + 1, 0).getDate();
+    const daysLeft     = Math.max(0, daysInMonth - now.getDate());
+    const spentLeft    = budget ? budget - thisMonthExp : null;
+    const spentPct     = budget ? Math.min(999, Math.round((thisMonthExp / budget) * 100)) : 0;
+    const overBudget   = budget && thisMonthExp > budget;
+    const closeBudget  = budget && !overBudget && spentPct >= 80;
+
     // Render shell.
     panel.innerHTML = `
-      <div id="fin-ov-income-section" class="fin-ov-section"></div>
-      <div id="fin-ov-surplus-section" class="fin-ov-section"></div>
-
-      <div class="fin-ov-section fin-ov-totals">
-        <div class="fin-ov-stat-row">
-          <div class="fin-ov-stat">
-            <span class="fin-ov-stat-val">${fmtRM(openingBalance)}</span>
-            <span class="fin-ov-stat-key">Opening balance</span>
-            <button class="r-mini fin-ov-edit-opening" style="margin-top:4px">Edit</button>
+      <div class="fin-ov-grid">
+        <div class="fin-ov-col-left">
+          <div class="fin-ov-section">
+            <span class="r-eyebrow">(this month)</span>
+            <div class="r-hero-row">
+              <span class="r-hero-unit">RM</span>
+              <span id="fin-ov-hero-num" class="r-hero-num${overBudget ? " r-hero-warn" : ""}"></span>
+            </div>
+            <div id="fin-ov-hero-caption" class="r-hero-caption"></div>
+            ${budget ? `
+            <div class="r-hero-track">
+              <div id="fin-ov-hero-fill" class="r-hero-fill${overBudget ? " r-hero-fill-warn" : closeBudget ? " r-hero-fill-close" : ""}" style="width:${Math.min(100, spentPct)}%"></div>
+            </div>` : ""}
+            <div id="fin-ov-hero-note" class="r-hero-note${overBudget ? " r-hero-note-warn" : closeBudget ? " r-hero-note-close" : ""}"></div>
+            <div class="fin-ov-limit-edit">
+              <button class="r-mini" id="fin-ov-set-budget">${budget ? "Edit limit" : "Set a limit"}</button>
+            </div>
           </div>
-          <div class="fin-ov-stat">
-            <span class="fin-ov-stat-val">${fmtRM(totalSaved)}</span>
-            <span class="fin-ov-stat-key">Est. total saved</span>
+
+          <div class="r-well">
+            <div class="r-well-cell">
+              <span class="r-micro">Spent</span>
+              <div class="r-well-val">${fmtRM(thisMonthExp).replace("RM ", "")}</div>
+            </div>
+            <div class="r-well-cell">
+              <span class="r-micro">Left</span>
+              <div class="r-well-val${spentLeft === null ? "" : spentLeft < 0 ? " r-well-val-warn" : " r-well-val-accent"}">${spentLeft === null ? "—" : spentLeft < 0 ? "−" + fmtRM(Math.abs(spentLeft)).replace("RM ", "") : fmtRM(spentLeft).replace("RM ", "")}</div>
+            </div>
+            <div class="r-well-cell">
+              <span class="r-micro">Days left</span>
+              <div class="r-well-val">${daysLeft}</div>
+            </div>
           </div>
-          ${avgMonthlySavings !== null ? `
-          <div class="fin-ov-stat">
-            <span class="fin-ov-stat-val ${avgMonthlySavings < 0 ? "fin-ov-stat-neg" : ""}">
-              ${fmtRM(Math.abs(avgMonthlySavings))}
-            </span>
-            <span class="fin-ov-stat-key">Avg. monthly ${avgMonthlySavings < 0 ? "deficit" : "savings"}</span>
-          </div>` : ""}
-        </div>
-      </div>
 
-      <div id="fin-ov-rule-section" class="fin-ov-section"></div>
+          <div id="fin-ov-income-section" class="fin-ov-section"></div>
+          <div id="fin-ov-surplus-section" class="fin-ov-section"></div>
+          <div id="fin-ov-rule-section" class="fin-ov-section"></div>
+          <div id="fin-ov-projections" class="fin-ov-section"></div>
 
-      <div class="fin-ov-section">
-        <div class="fin-ov-section-head">
-          <span class="fin-ov-section-label">6-Month Savings</span>
-          <span class="fin-ov-section-note">bars below zero = overspent that month</span>
+          <div class="fin-ov-section fin-ov-saved-line">
+            <span class="r-micro">Est. total saved</span>
+            <div class="r-hero-note" style="margin-top:4px;">
+              <span>${fmtRM(totalSaved)}</span>
+              <button class="r-mini fin-ov-edit-opening" style="margin-left:8px">Opening balance</button>
+            </div>
+          </div>
         </div>
-        <div id="fin-ov-chart-wrap" class="fin-chart-wrap"></div>
-      </div>
 
-      <div id="fin-ov-projections" class="fin-ov-section"></div>
-
-      <div class="fin-ov-section fin-ov-budget-section">
-        <div class="fin-ov-section-head">
-          <span class="fin-ov-section-label">Monthly spending limit</span>
+        <div class="fin-ov-col-right">
+          <div id="fin-ov-cats-section" class="fin-ov-section"></div>
+          <div id="fin-ov-exp-preview" class="fin-ov-section fin-ov-mobile-only"></div>
+          <div id="fin-ov-committed-section" class="fin-ov-section"></div>
+          <div class="fin-ov-section">
+            <div class="fin-ov-section-head">
+              <span class="r-eyebrow">(saved per month)</span>
+              <span class="fin-ov-section-note">allowance minus spend</span>
+            </div>
+            <div id="fin-ov-chart-wrap" class="fin-chart-wrap"></div>
+            <div id="fin-ov-chart-caption" class="r-hero-note"></div>
+          </div>
         </div>
-        <div class="fin-ov-budget-row">
-          <span class="fin-ov-budget-val">${budget ? fmtRM(budget) : "Not set"}</span>
-          <button class="r-mini" id="fin-ov-set-budget">${budget ? "Edit" : "Set"}</button>
-        </div>
-        <p class="fin-ov-budget-note">Used in the Expenses tab budget bar.</p>
       </div>`;
+
+    // Hero fill-in (text built here so the number itself never has to re-render on tick).
+    const heroNum = el("fin-ov-hero-num");
+    if (heroNum) {
+      const [whole, cents] = fmtRM(thisMonthExp).replace("RM ", "").split(".");
+      heroNum.innerHTML = `${whole}<span class="r-hero-cents">.${cents}</span>`;
+    }
+    const heroCaption = el("fin-ov-hero-caption");
+    if (heroCaption) {
+      heroCaption.textContent = budget
+        ? `of your ${fmtRM(budget)} limit · ${spentPct}% used`
+        : `Set a monthly limit to see how this month is tracking.`;
+    }
+    const heroNote = el("fin-ov-hero-note");
+    if (heroNote) {
+      heroNote.textContent = !budget
+        ? "Nothing needs you here yet."
+        : overBudget
+        ? `Over by ${fmtRM(thisMonthExp - budget)}. This needs you.`
+        : closeBudget
+        ? "Getting close to your limit."
+        : "Comfortably under. Nothing needs you here.";
+    }
 
     // Opening balance edit.
     panel.querySelector(".fin-ov-edit-opening").addEventListener("click", async () => {
@@ -332,31 +443,108 @@
 
     drawIncomePanel(el("fin-ov-income-section"), thisMonthIncome, allIncome, thisYear, thisMonth);
     drawSurplusPanel(el("fin-ov-surplus-section"), thisSurplus, allSurplus, thisYear, thisMonth);
-    // Needs/wants/unsorted split of this month's spending, via the category map.
-    const buckets = (cachedSettings && cachedSettings.category_buckets) || {};
-    const thisMonthRows = allExpenses.filter((e) => {
-      const d = new Date(e.logged_at);
-      return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
-    });
-    const split = { need: 0, want: 0, unsorted: 0 };
-    thisMonthRows.forEach((e) => {
-      const cat = (e.category || "").trim().toLowerCase();
-      const b = buckets[cat];
-      if (b === "need") split.need += Number(e.amount);
-      else if (b === "want") split.want += Number(e.amount);
-      else split.unsorted += Number(e.amount);
-    });
-    const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b));
-
-    // Subscriptions (kv) → a faint "reserve this much for subs" marker on the Needs bar.
-    const subsData = (await window.dmicoKvGet("finance_subscriptions")) || {};
-    const subsItems = Array.isArray(subsData.items) ? subsData.items : [];
-    const subsMonthly = subsItems.reduce((s, it) => s + (it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0)), 0);
-
     draw503020(el("fin-ov-rule-section"), income, split, ruleSavings, allCats, buckets, activeRule(), subsMonthly);
-    drawSavingsChart(el("fin-ov-chart-wrap"), monthlySavings);
+    drawSavingsChart(el("fin-ov-chart-wrap"), el("fin-ov-chart-caption"), monthlySavings);
     drawProjections(el("fin-ov-projections"), goals, avgMonthlySavings, totalSaved);
+    drawCategoryChips(el("fin-ov-cats-section"), thisMonthRows);
+    drawExpensePreview(el("fin-ov-exp-preview"), thisMonthRows);
+    drawCommitted(el("fin-ov-committed-section"), subsItems, subsMonthly);
+  }
+
+  // ── Category chip row (Overview) ───────────────────────────
+  function drawCategoryChips(section, thisMonthRows) {
+    if (!section) return;
+    const counts = {};
+    thisMonthRows.forEach((e) => {
+      const cat = (e.category || "").trim() || "Uncategorised";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    const chips = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, n]) => `<span class="r-chip">${esc(cat)} <span class="r-chip-count">${n}</span></span>`)
+      .join("");
+    section.innerHTML = `
+      <div class="fin-ov-section-head">
+        <span class="r-eyebrow">(expenses)</span>
+        <span class="fin-ov-section-note">${thisMonthRows.length} this month</span>
+      </div>
+      ${chips ? `<div class="r-chips" style="margin-top:12px">${chips}</div>` : `<p class="fin-ov-rule-empty">Nothing logged this month yet.</p>`}`;
+  }
+
+  // ── Expense preview (Overview, mobile) — three most recent this month ──
+  function drawExpensePreview(section, thisMonthRows) {
+    if (!section) return;
+    if (!thisMonthRows.length) { section.innerHTML = ""; return; }
+    const recent = [...thisMonthRows]
+      .sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at))
+      .slice(0, 3);
+    const rows = recent.map((e) => {
+      const d = new Date(e.logged_at);
+      const isToday = d.toDateString() === new Date().toDateString();
+      const dateStr = isToday ? "Today" : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      return `
+        <div class="r-row">
+          <div class="r-row-main">
+            <div class="r-micro">${esc(e.category || "Uncategorised")}</div>
+            <div class="r-row-content">${esc(e.note || e.category || "—")}</div>
+          </div>
+          <div class="r-row-side">
+            <div class="r-row-amt">${fmtRM(e.amount).replace("RM ", "")}</div>
+            <div class="r-row-date">${dateStr}</div>
+          </div>
+        </div>`;
+    }).join("");
+    section.innerHTML = `
+      <div class="r-row-list">${rows}</div>
+      <div class="fin-ov-exp-actions">
+        <button class="btn-primary r-btn fin-ov-log-btn">Log an expense</button>
+        <button class="r-mini fin-ov-see-btn">See all ${thisMonthRows.length}</button>
+      </div>`;
+    const goExpenses = () => {
+      const tab = root.querySelector('.r-tab[data-tab="expenses"]');
+      if (tab) tab.click();
+    };
+    section.querySelector(".fin-ov-log-btn").addEventListener("click", goExpenses);
+    section.querySelector(".fin-ov-see-btn").addEventListener("click", goExpenses);
+  }
+
+  // ── Committed subscriptions (Overview) ─────────────────────
+  function drawCommitted(section, subsItems, subsMonthly) {
+    if (!section) return;
+    if (!subsItems.length) {
+      section.innerHTML = `
+        <div class="fin-ov-section-head"><span class="r-eyebrow">(committed)</span></div>
+        <p class="fin-committed-empty">No subscriptions tracked yet. Add them from the Subscriptions tab.</p>`;
+      return;
+    }
+    const now = new Date();
+    const withDays = subsItems.map((it) => {
+      const days = it.next ? Math.ceil((new Date(it.next) - now) / 86400000) : null;
+      return { ...it, days };
+    }).sort((a, b) => {
+      if (a.days === null) return 1;
+      if (b.days === null) return -1;
+      return a.days - b.days;
+    });
+    const rows = withDays.map((it) => {
+      const soon = it.days !== null && it.days >= 0 && it.days <= 3;
+      const when = it.days === null ? "" : it.days === 0 ? "renews today" : it.days === 1 ? "renews tomorrow" : it.days < 0 ? "overdue" : `${new Date(it.next).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+      const amt = it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0);
+      return `
+        <div class="fin-committed-row">
+          <div class="fin-committed-dot${soon ? " fin-dot-soon" : ""}"></div>
+          <div class="fin-committed-name">${esc(it.name)}</div>
+          ${when ? `<div class="fin-committed-when">${esc(when)}</div>` : ""}
+          <div class="fin-committed-amtv">${fmtRM(amt).replace("RM ", "")}</div>
+        </div>`;
+    }).join("");
+    section.innerHTML = `
+      <div class="fin-ov-section-head"><span class="r-eyebrow">(committed)</span></div>
+      <div class="fin-committed-total">
+        <span class="fin-committed-amt">${fmtRM(subsMonthly)}</span>
+        <span class="fin-committed-sub">a month · ${subsItems.length} subscription${subsItems.length === 1 ? "" : "s"}</span>
+      </div>
+      ${rows}`;
   }
 
   // ── Income panel ───────────────────────────────────────────
@@ -737,7 +925,10 @@
   }
 
   // ── Savings chart (SVG, 6 months, zero-centred) ────────────
-  function drawSavingsChart(wrap, monthlySavings) {
+  // Five empty outlines plus one filled bar is the honest treatment: a month with
+  // no allowance logged draws as a dashed outline over the full track, not a faked
+  // zero. Only months with real data get a solid bar.
+  function drawSavingsChart(wrap, captionEl, monthlySavings) {
     if (!wrap) return;
     const nets   = monthlySavings.map((m) => m.net ?? 0);
     const maxAbs = Math.max(...nets.map(Math.abs), 1);
@@ -774,9 +965,10 @@
             ${m.net < 0 ? "−" : ""}${lbl}
           </text>`;
       } else {
-        // No income logged — dim dash at baseline.
-        barEl = `<rect x="${x + barW / 4}" y="${base - 1}" width="${barW / 2}" height="2"
-                       rx="1" fill="var(--line)"/>`;
+        // No allowance logged — an honest empty outline over the full track,
+        // not a faked zero-height bar.
+        barEl = `<rect x="${x}" y="${padTop}" width="${barW}" height="${plotH}" rx="6"
+                       fill="none" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
       }
 
       return `<g>
@@ -795,6 +987,14 @@
               fill="var(--ink-faint)" font-family="var(--body)">0</text>
         ${bars}
       </svg>`;
+
+    if (captionEl) {
+      const tracked = monthlySavings.filter((m) => m.net !== null).length;
+      const waiting = monthlySavings.length - tracked;
+      captionEl.textContent = waiting > 0
+        ? `${tracked} month${tracked === 1 ? "" : "s"} tracked so far. ${waiting} outline${waiting === 1 ? "" : "s"} waiting to fill, so the chart shows its own progress instead of faking history.`
+        : `bars below zero mean that month was overspent`;
+    }
   }
 
   // ── Goal projections ───────────────────────────────────────
@@ -1001,56 +1201,115 @@
   async function renderExpenses() {
     const panel = el("fin-panel");
     panel.innerHTML = `
-      <div class="r-form fin-addform">
-        <div class="r-row2">
-          <div class="r-field"><label>Amount (RM)</label><input id="fe-amount" type="number" min="0" step="0.01" placeholder="0.00" /></div>
-          <div class="r-field"><label>Category</label><input id="fe-cat" type="text" list="fe-cat-list" placeholder="e.g. Food, Transport" /><datalist id="fe-cat-list"></datalist></div>
-        </div>
-        <div class="r-row2">
-          <div class="r-field"><label>Note</label><input id="fe-note" type="text" placeholder="optional detail" /></div>
-          <div class="r-field"><label>Date</label><input id="fe-date" type="date" value="${new Date().toISOString().slice(0,10)}" /></div>
-        </div>
-        <div class="r-field">
-          <label>Link to project <span class="r-label-optional">(optional)</span></label>
-          <select id="fe-project"><option value="">— no project —</option></select>
-        </div>
-        <div class="r-field fin-rec-toggle-row">
-          <label class="fin-rec-check-label">
-            <input type="checkbox" id="fe-recurring" />
-            Recurring expense
-          </label>
-          <input id="fe-rec-label" type="text" placeholder="Label (e.g. Spotify, Rent)" class="fin-rec-name" hidden />
-        </div>
-        <button id="fe-save" class="btn-primary r-btn">Log expense</button>
-        <p id="fe-status" class="r-status"></p>
-      </div>
+      <div class="fin-exp-grid">
+        <div class="fin-exp-form-col">
+          <div class="r-card fin-exp-form-card">
+            <span class="r-eyebrow">(log an expense)</span>
 
-      <div id="fin-recurring-section" class="fin-rec-section"></div>
+            <div class="fin-field-block">
+              <span class="r-micro">Amount</span>
+              <div class="fin-amt-field">
+                <span class="fin-amt-prefix">RM</span>
+                <input id="fe-amount" class="fin-amt-input" type="number" min="0" step="0.01" placeholder="0.00" inputmode="decimal" />
+              </div>
+            </div>
 
-      <div class="fin-month-nav">
-        <button id="fin-prev" class="r-mini fin-nav-btn">&#8592;</button>
-        <span id="fin-month-label" class="fin-month-label"></span>
-        <button id="fin-next" class="r-mini fin-nav-btn">&#8594;</button>
-      </div>
+            <div class="fin-field-block">
+              <span class="r-micro">Category</span>
+              <div id="fe-cat-chips" class="fin-cat-chip-row"></div>
+              <input id="fe-cat" type="text" class="fin-cat-custom-input" placeholder="Type a category" hidden />
+            </div>
 
-      <div id="fin-chart-wrap" class="fin-chart-wrap"></div>
-      <div id="fin-summary" class="fin-summary"></div>
-      <div id="fin-entries" class="r-list"></div>`;
+            <div class="fin-field-block">
+              <span class="r-micro">Note <span class="r-label-optional">optional</span></span>
+              <input id="fe-note" type="text" placeholder="optional detail" />
+            </div>
+
+            <div class="fin-field-block">
+              <span class="r-micro">Date</span>
+              <input id="fe-date" type="date" value="${new Date().toISOString().slice(0,10)}" />
+            </div>
+
+            <details class="fin-exp-more">
+              <summary class="fin-ov-hist-toggle">More fields</summary>
+              <div class="fin-field-block">
+                <span class="r-micro">Link to project <span class="r-label-optional">optional</span></span>
+                <select id="fe-project"><option value="">— no project —</option></select>
+              </div>
+              <div class="r-field fin-rec-toggle-row">
+                <label class="fin-rec-check-label">
+                  <input type="checkbox" id="fe-recurring" />
+                  Recurring expense
+                </label>
+                <input id="fe-rec-label" type="text" placeholder="Label (e.g. Spotify, Rent)" class="fin-rec-name" hidden />
+              </div>
+            </details>
+
+            <div class="fin-exp-form-actions">
+              <button id="fe-save" class="btn-primary r-btn">Save expense</button>
+              <button id="fe-clear" class="r-mini">Clear</button>
+            </div>
+            <p id="fe-status" class="r-status"></p>
+          </div>
+          <div id="fin-recurring-section" class="fin-rec-section"></div>
+        </div>
+
+        <div class="fin-exp-list-col">
+          <div class="fin-month-nav">
+            <button id="fin-prev" class="r-mini fin-nav-btn">&#8592;</button>
+            <span id="fin-month-label" class="fin-month-label"></span>
+            <button id="fin-next" class="r-mini fin-nav-btn">&#8594;</button>
+          </div>
+          <div id="fin-chart-wrap" class="fin-chart-wrap"></div>
+          <details class="fin-exp-summary-toggle">
+            <summary class="fin-ov-hist-toggle">By category</summary>
+            <div id="fin-summary" class="fin-summary"></div>
+          </details>
+          <div class="fin-ov-section-head" style="margin-top:20px;">
+            <span class="r-eyebrow" id="fin-entries-eyebrow">(logged)</span>
+            <span class="fin-ov-section-note" id="fin-entries-note"></span>
+          </div>
+          <div id="fin-entries"></div>
+        </div>
+      </div>`;
 
     el("fe-save").addEventListener("click", addExpense);
+    el("fe-clear").addEventListener("click", clearExpenseForm);
     el("fin-prev").addEventListener("click", () => shiftMonth(-1));
     el("fin-next").addEventListener("click", () => shiftMonth(1));
 
-    // Smart default: pre-fill the category you used last, and offer the ones you
-    // already use as autocomplete, so logging is a scan-and-adjust, not a retype.
-    const catInput = el("fe-cat");
-    const lastCat = localStorage.getItem("dmico-last-exp-cat");
-    if (lastCat && catInput && !catInput.value) catInput.value = lastCat;
+    // Category chips: the real categories, ordered by how often each is used, with
+    // an "Other" chip that reveals free text for anything new.
+    const chipsWrap = el("fe-cat-chips");
+    const catInput  = el("fe-cat");
+    const lastCat   = localStorage.getItem("dmico-last-exp-cat");
+    const selectCatChip = (cat, custom) => {
+      chipsWrap.querySelectorAll(".r-chip").forEach((c) =>
+        c.classList.toggle("on", !custom && c.dataset.cat === cat)
+      );
+      catInput.hidden = !custom;
+      catInput.value = cat || "";
+      if (custom) catInput.focus();
+    };
     SB.from("finance_expenses").select("category").not("category", "is", null).then(({ data }) => {
-      const cats = [...new Set((data || []).map((r) => (r.category || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-      const dl = el("fe-cat-list");
-      if (dl) dl.innerHTML = cats.map((c) => `<option value="${c.replace(/"/g, "&quot;")}"></option>`).join("");
+      const counts = {};
+      (data || []).forEach((r) => {
+        const c = (r.category || "").trim();
+        if (c) counts[c] = (counts[c] || 0) + 1;
+      });
+      const cats = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([c]) => c).slice(0, 8);
+      chipsWrap.innerHTML =
+        cats.map((c) => `<button type="button" class="r-chip" data-cat="${esc(c)}">${esc(c)}</button>`).join("") +
+        `<button type="button" class="r-chip fin-cat-chip-other" data-cat="">Other</button>`;
+      chipsWrap.querySelectorAll(".r-chip").forEach((chip) => {
+        chip.addEventListener("click", () =>
+          selectCatChip(chip.dataset.cat, chip.classList.contains("fin-cat-chip-other"))
+        );
+      });
+      const initial = lastCat && cats.includes(lastCat) ? lastCat : cats[0];
+      if (initial) selectCatChip(initial, false);
     });
+
     el("fe-recurring").addEventListener("change", () => {
       const recLabel = el("fe-rec-label");
       recLabel.hidden = !el("fe-recurring").checked;
@@ -1070,6 +1329,13 @@
     });
 
     await refreshExpenses();
+  }
+
+  function clearExpenseForm() {
+    if (el("fe-amount")) el("fe-amount").value = "";
+    if (el("fe-note"))   el("fe-note").value = "";
+    if (el("fe-date"))   el("fe-date").value = new Date().toISOString().slice(0, 10);
+    if (el("fe-status")) el("fe-status").textContent = "";
   }
 
   // ── Recurring section ──────────────────────────────────────
@@ -1172,7 +1438,9 @@
     const { error } = await SB.from("finance_expenses").insert(row);
     if (error) { console.error(error); msg.textContent = "Couldn't save. Try again."; return; }
     if (row.category) localStorage.setItem("dmico-last-exp-cat", row.category);
-    el("fe-amount").value = ""; el("fe-cat").value = "";
+    // Amount, note and date reset for the next entry; category chip stays selected,
+    // since logging several expenses in the same category in a row is the common case.
+    el("fe-amount").value = "";
     el("fe-note").value   = ""; el("fe-date").value = new Date().toISOString().slice(0, 10);
     if (el("fe-project"))   el("fe-project").value = "";
     if (el("fe-recurring")) {
@@ -1206,6 +1474,13 @@
       .gte("logged_at", start).lt("logged_at", end).order("logged_at", { ascending: false });
     if (error) { console.error(error); summaryEl.innerHTML = `<p class="r-status">Couldn't load expenses.</p>`; return; }
     const entries = data || [];
+    const eyebrowEl = el("fin-entries-eyebrow");
+    const noteEl    = el("fin-entries-note");
+    if (eyebrowEl) eyebrowEl.textContent = `(logged · ${MONTH_NAMES[activeMonth].toLowerCase()})`;
+    if (noteEl) {
+      const total = entries.reduce((s, e) => s + Number(e.amount || 0), 0);
+      noteEl.textContent = `${entries.length} · ${fmtRM(total)}`;
+    }
     buildSummary(entries, summaryEl);
     buildEntryList(entries, listEl);
     await drawExpenseChart();
@@ -1270,37 +1545,14 @@
     );
   }
 
+  // Per-month category $ breakdown, collapsed under "By category" in the Expenses
+  // tab. The total-vs-limit framing already lives on the Overview hero, so this view
+  // stays to just the breakdown itself, useful when browsing a past month via the
+  // month nav (the hero only ever shows the current month).
   function buildSummary(entries, container) {
-    const total  = entries.reduce((s, e) => s + Number(e.amount || 0), 0);
-    const budget = getBudget();
-    let budgetHTML = "";
-    if (budget) {
-      const pct  = Math.min(100, Math.round((total / budget) * 100));
-      const over = total > budget;
-      const warn = !over && total / budget >= 0.8;
-      budgetHTML = `
-        <div class="fin-budget-row">
-          <span class="fin-budget-label">Limit ${fmtRM(budget)}</span>
-          <span class="fin-budget-status${over?" fin-budget-status-over":warn?" fin-budget-status-warn":""}">
-            ${over ? `Over by ${fmtRM(total-budget)}` : warn ? `${fmtRM(budget-total)} left — close` : `${fmtRM(budget-total)} remaining`}
-          </span>
-          <button class="r-mini fin-set-budget-btn">Edit</button>
-        </div>
-        <div class="fin-budget-track">
-          <div class="${over?"fin-budget-fill fin-budget-over":warn?"fin-budget-fill fin-budget-warn":"fin-budget-fill"}" style="width:${pct}%"></div>
-        </div>`;
-    }
+    const total = entries.reduce((s, e) => s + Number(e.amount || 0), 0);
     if (!entries.length) {
-      container.innerHTML = `
-        <div class="fin-summary-card">
-          <div class="fin-summary-top">
-            <span class="fin-total">RM 0.00</span>
-            <span class="fin-total-label">spent this month</span>
-            ${!budget ? `<button class="r-mini fin-set-budget-btn fin-set-budget-new">Set limit</button>` : ""}
-          </div>
-          ${budgetHTML}
-        </div>`;
-      container.querySelectorAll(".fin-set-budget-btn").forEach((b) => b.addEventListener("click", promptBudget));
+      container.innerHTML = `<p class="r-status">Nothing logged this month.</p>`;
       return;
     }
     const cats   = {};
@@ -1314,66 +1566,64 @@
         <span class="fin-cat-amt">${fmtRM(amt)}</span>
       </div>`;
     }).join("");
-    const over = budget && total > budget;
-    container.innerHTML = `
-      <div class="fin-summary-card">
-        <div class="fin-summary-top">
-          <span class="fin-total${over?" fin-total-over":""}">${fmtRM(total)}</span>
-          <span class="fin-total-label">spent &middot; ${entries.length} entr${entries.length===1?"y":"ies"}</span>
-          ${!budget ? `<button class="r-mini fin-set-budget-btn fin-set-budget-new">Set limit</button>` : ""}
-        </div>
-        ${budgetHTML}
-        <div class="fin-cats">${bars}</div>
-      </div>`;
-    container.querySelectorAll(".fin-set-budget-btn").forEach((b) => b.addEventListener("click", promptBudget));
+    container.innerHTML = `<div class="fin-cats">${bars}</div>`;
   }
 
-  function promptBudget() {
-    const cur = getBudget();
-    const raw = window.prompt(
-      cur ? `Monthly spending limit (RM):\nCurrently ${fmtRM(cur)}. Leave blank to remove.`
-           : "Set a monthly spending limit (RM):"
-    );
-    if (raw === null) return;
-    if (raw.trim() === "") { setBudget(null); refreshExpenses(); return; }
-    const n = parseFloat(raw);
-    if (isNaN(n) || n <= 0) { alert("Enter a valid amount."); return; }
-    setBudget(n);
-    saveSettings({ monthly_budget: n }); // persist to Supabase too
-    refreshExpenses();
+  const DEL_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5h14"></path><path d="M9 7.5V5.4h6V7.5"></path><path d="M6.6 7.5 7.4 19h9.2l.8-11.5"></path></svg>`;
+
+  // Monday of the week containing d, for grouping the entry list into weekly runs.
+  function mondayOf(d) {
+    const day = d.getDay(); // 0 = Sunday
+    const diff = (day === 0 ? -6 : 1) - day;
+    const m = new Date(d);
+    m.setDate(d.getDate() + diff);
+    m.setHours(0, 0, 0, 0);
+    return m;
   }
 
+  // Rows are hairline-separated text, not cards, so 70 of them read as a column of
+  // text. A date heading breaks the run every week.
   function buildEntryList(entries, container) {
     if (!entries.length) {
       container.innerHTML = `<div class="empty"><h2>Nothing logged yet</h2><p>Add your first expense above.</p></div>`;
       return;
     }
-    container.innerHTML = "";
-    entries.forEach((e) => {
-      const row  = document.createElement("div");
-      row.className = "r-card fin-expense-row";
-      const d    = new Date(e.logged_at);
-      const dateStr = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-      row.innerHTML = `
-        <div class="fin-exp-left">
-          <span class="fin-exp-amount">${fmtRM(e.amount)}</span>
-          <div class="fin-exp-detail">
-            ${e.category ? `<span class="r-chip fin-exp-cat">${esc(e.category)}</span>` : ""}
-            ${e.project_id ? (() => { const p = gdProjects.find((x) => x.id === e.project_id); return p ? `<span class="r-chip fin-exp-project">${esc(p.name)}</span>` : ""; })() : ""}
-            ${e.note ? `<span class="fin-exp-note">${esc(e.note)}</span>` : ""}
+    const today = new Date();
+    let lastWeek = null;
+    const rows = entries.map((e) => {
+      const d = new Date(e.logged_at);
+      const isToday = d.toDateString() === today.toDateString();
+      const dateStr = isToday ? "Today" : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      const week = mondayOf(d).getTime();
+      let heading = "";
+      if (week !== lastWeek) {
+        heading = `<div class="r-row-heading">Week of ${mondayOf(d).toLocaleDateString(undefined, { day: "numeric", month: "long" })}</div>`;
+        lastWeek = week;
+      }
+      const project = e.project_id ? gdProjects.find((x) => x.id === e.project_id) : null;
+      return `
+        ${heading}
+        <div class="r-row" data-id="${esc(e.id)}">
+          <div class="r-row-main">
+            <div class="r-micro">${esc(e.category || "Uncategorised")}</div>
+            <div class="r-row-content">${esc(e.note || project?.name || e.category || "—")}</div>
           </div>
-        </div>
-        <div class="fin-exp-right">
-          <span class="fin-exp-date">${dateStr}</span>
-          <button class="r-mini r-del fin-del-exp" data-id="${esc(e.id)}">×</button>
+          <div class="r-row-side">
+            <div class="r-row-amt">${fmtRM(e.amount).replace("RM ", "")}</div>
+            <div class="r-row-date">${dateStr}</div>
+          </div>
+          <button class="r-row-del fin-del-exp" title="Delete" aria-label="Delete this expense">${DEL_ICON_SVG}</button>
         </div>`;
-      row.querySelector(".fin-del-exp").addEventListener("click", async () => {
+    }).join("");
+    container.innerHTML = `<div class="r-row-list">${rows}</div>`;
+    container.querySelectorAll(".fin-del-exp").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.closest(".r-row").dataset.id;
         if (!window.confirm("Remove this expense?")) return;
-        const { error } = await SB.from("finance_expenses").delete().eq("id", e.id);
+        const { error } = await SB.from("finance_expenses").delete().eq("id", id);
         if (error) { console.error(error); return; }
         refreshExpenses();
       });
-      container.appendChild(row);
     });
   }
 
@@ -1381,18 +1631,39 @@
   //  GOALS TAB
   // ════════════════════════════════════════════════════════════
 
-  async function renderGoals() {
-    const panel = el("fin-panel");
-    panel.innerHTML = `
-      <div class="r-form fin-addform">
+  const ICON_GOAL = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.5"></circle><circle cx="12" cy="12" r="3.4"></circle><path d="M12 4.5V2.6M12 21.4v-1.9M4.5 12H2.6M21.4 12h-1.9"></path></svg>`;
+  const ICON_SAVINGS = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 9.5h15v9.2a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1Z"></path><path d="M6.6 9.5V6.2a1 1 0 0 1 1-1h8.8a1 1 0 0 1 1 1v3.3"></path><path d="M12 12.6v3.6"></path></svg>`;
+  const ICON_INVEST = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19h15"></path><path d="M7 19v-5.4M12 19V9.4M17 19v-8"></path></svg>`;
+
+  // Shared skeleton for a genuinely empty tab: hairline circle icon, one sentence of
+  // what the tab is for, one olive action, one faint reassurance. No accent colour
+  // beyond the icon and the button, no alarm.
+  function emptySkeleton({ icon, title, body, ctaLabel, ctaId, foot }) {
+    return `
+      <div class="r-empty2">
+        <div class="r-empty2-icon">${icon}</div>
+        <div class="r-empty2-title">${esc(title)}</div>
+        <div class="r-empty2-body">${body}</div>
+        <div class="r-empty2-actions"><button class="btn-primary r-btn" id="${ctaId}">${esc(ctaLabel)}</button></div>
+        ${foot ? `<div class="r-empty2-foot">${foot}</div>` : ""}
+      </div>`;
+  }
+
+  function goalFormHTML(hidden) {
+    return `
+      <div class="r-form fin-addform" id="fin-goal-form" ${hidden ? "hidden" : ""}>
+        <span class="r-eyebrow">(set a goal)</span>
         <div class="r-field"><label>Goal label</label><input id="fg-label" type="text" placeholder="e.g. RTX 5080, Japan trip" /></div>
         <div class="r-field"><label>Target amount (RM)</label><input id="fg-target" type="number" min="1" step="0.01" placeholder="0.00" /></div>
         <div class="r-field"><label>Starting amount saved (RM)</label><input id="fg-current" type="number" min="0" step="0.01" placeholder="0.00" /></div>
         <button id="fg-save" class="btn-primary r-btn">Add goal</button>
         <p id="fg-status" class="r-status"></p>
-      </div>
-      <div id="fin-goals" class="fin-goals-list"></div>`;
-    el("fg-save").addEventListener("click", addGoal);
+      </div>`;
+  }
+
+  async function renderGoals() {
+    const panel = el("fin-panel");
+    panel.innerHTML = `<p class="r-status">Loading…</p>`;
     await drawGoals();
   }
 
@@ -1406,27 +1677,49 @@
     msg.textContent = "Adding…";
     const { error } = await SB.from("finance_goals").insert({ label, target, current, added_via: "web" });
     if (error) { console.error(error); msg.textContent = "Couldn't add it. Try again."; return; }
-    ["fg-label","fg-target","fg-current"].forEach((id) => (el(id).value = ""));
     msg.textContent = "";
     await drawGoals();
   }
 
   async function drawGoals() {
-    const list = el("fin-goals");
-    const { data, error } = await SB.from("finance_goals").select("*").order("created_at");
-    if (error) { list.innerHTML = `<p class="r-status">Couldn't load goals.</p>`; return; }
-    const goals = data || [];
+    const panel = el("fin-panel");
+    const [goalsRes, wlRes] = await Promise.all([
+      SB.from("finance_goals").select("*").order("created_at"),
+      SB.from("finance_wishlist").select("id", { count: "exact", head: true }),
+    ]);
+    if (goalsRes.error) { panel.innerHTML = `<p class="r-status">Couldn't load goals.</p>`; return; }
+    const goals   = goalsRes.data || [];
+    const wlCount = wlRes && wlRes.count ? wlRes.count : 0;
+
     if (!goals.length) {
-      list.innerHTML = `<div class="empty"><h2>No goals yet</h2><p>Add a savings goal above.</p></div>`;
+      panel.innerHTML =
+        emptySkeleton({
+          icon: ICON_GOAL,
+          title: "No goals yet",
+          body: "A goal is one thing you are saving toward, with an amount and a date. Finance then shows how close you are each month.",
+          ctaLabel: "Set a goal",
+          ctaId: "fg-empty-cta",
+          foot: wlCount
+            ? `Your ${wlCount} wishlist item${wlCount === 1 ? "" : "s"} ${wlCount === 1 ? "is" : "are"} the usual first goal${wlCount === 1 ? "" : "s"}. Nothing here is overdue, so this tab never flags itself.`
+            : `Nothing here is overdue, so this tab never flags itself.`,
+        }) + goalFormHTML(true);
+      el("fg-save").addEventListener("click", addGoal);
+      el("fg-empty-cta").addEventListener("click", () => {
+        const form = el("fin-goal-form");
+        if (form) { form.hidden = false; el("fg-label")?.focus(); }
+      });
       return;
     }
+
+    panel.innerHTML = goalFormHTML(false) + `<div id="fin-goals" class="fin-goals-list"></div>`;
+    el("fg-save").addEventListener("click", addGoal);
     const withPct = goals.map((g) => ({
       ...g,
       pct:  g.target > 0 ? Math.min(100, Math.round((Number(g.current)/Number(g.target))*100)) : 0,
       done: Number(g.current) >= Number(g.target),
     }));
     withPct.sort((a, b) => { if (a.done !== b.done) return a.done ? -1 : 1; return b.pct - a.pct; });
-    list.innerHTML = "";
+    const list = el("fin-goals");
     withPct.forEach((g, i) => buildGoalCard(g, i + 1, list));
   }
 
@@ -1440,7 +1733,7 @@
       : "";
     card.innerHTML = `
       <div class="fin-goal-header">
-        <span class="fin-goal-rank">#${rank}</span>
+        <span class="fin-goal-rank">${String(rank).padStart(2, "0")}</span>
         <div class="fin-goal-title-block">
           <span class="fin-goal-label">${esc(g.label)}</span>
           ${g.done ? `<span class="fin-done-badge">Done</span>` : ""}
@@ -1546,10 +1839,10 @@
 
   const INV_PALETTE = ["var(--accent)", "var(--lantern)", "#B08A2A", "var(--clay)", "var(--accent-deep)", "#6E8B7B", "#9C6B3F", "#7C6A4F"];
 
-  async function renderInvestments() {
-    const panel = el("fin-panel");
-    panel.innerHTML = `
-      <div class="r-form fin-addform">
+  function invFormHTML(hidden) {
+    return `
+      <div class="r-form fin-addform" id="fin-inv-form" ${hidden ? "hidden" : ""}>
+        <span class="r-eyebrow">(add a holding)</span>
         <div class="r-field"><label>Holding name</label><input id="iv-name" type="text" placeholder="e.g. ASM, Bitcoin, Maybank shares" /></div>
         <div class="r-row2">
           <div class="r-field"><label>Type</label><input id="iv-type" type="text" placeholder="e.g. Stocks, Crypto, Gold, Funds" /></div>
@@ -1561,9 +1854,12 @@
         </div>
         <button id="iv-save" class="btn-primary r-btn">Add holding</button>
         <p id="iv-status" class="r-status"></p>
-      </div>
-      <div id="fin-inv-body"></div>`;
-    el("iv-save").addEventListener("click", addInvestment);
+      </div>`;
+  }
+
+  async function renderInvestments() {
+    const panel = el("fin-panel");
+    panel.innerHTML = `<p class="r-status">Loading…</p>`;
     await drawInvestments();
   }
 
@@ -1583,20 +1879,35 @@
     msg.textContent = "Adding…";
     const { error } = await SB.from("investments").insert(row);
     if (error) { console.error(error); msg.textContent = "Couldn't add it. Try again."; return; }
-    ["iv-name", "iv-type", "iv-amount", "iv-current", "iv-notes"].forEach((id) => (el(id).value = ""));
     msg.textContent = "";
     await drawInvestments();
   }
 
   async function drawInvestments() {
-    const body = el("fin-inv-body");
+    const panel = el("fin-panel");
     const { data, error } = await SB.from("investments").select("*").order("created_at", { ascending: true });
-    if (error) { console.error(error); body.innerHTML = `<p class="r-status">Couldn't load investments.</p>`; return; }
+    if (error) { console.error(error); panel.innerHTML = `<p class="r-status">Couldn't load investments.</p>`; return; }
     const holdings = data || [];
     if (!holdings.length) {
-      body.innerHTML = `<div class="empty"><h2>No investments yet</h2><p>Add a holding above. The donut shows where your money sits by type, and current values give you a gain/loss readout. Crypto tracked by the bot stays separate for now.</p></div>`;
+      panel.innerHTML =
+        emptySkeleton({
+          icon: ICON_INVEST,
+          title: "Nothing tracked",
+          body: "When you hold something, record what it is and what you paid. This tab reports value, never advice.",
+          ctaLabel: "Add a holding",
+          ctaId: "iv-empty-cta",
+          foot: "Fine to leave empty. An empty tab is a fact, not a task.",
+        }) + invFormHTML(true);
+      el("iv-save").addEventListener("click", addInvestment);
+      el("iv-empty-cta").addEventListener("click", () => {
+        const form = el("fin-inv-form");
+        if (form) { form.hidden = false; el("iv-name")?.focus(); }
+      });
       return;
     }
+    panel.innerHTML = invFormHTML(false) + `<div id="fin-inv-body"></div>`;
+    el("iv-save").addEventListener("click", addInvestment);
+    const body = el("fin-inv-body");
 
     const totalInvested = holdings.reduce((s, h) => s + Number(h.amount_invested || 0), 0);
     const totalCurrent  = holdings.reduce((s, h) => s + Number(h.current_value != null ? h.current_value : (h.amount_invested || 0)), 0);
@@ -1777,10 +2088,20 @@
   //  Where extra income lives as a running, drawable balance, kept
   //  separate from the month-to-month allowance budget.
   // ════════════════════════════════════════════════════════════
+  function savingsFormHTML(hidden) {
+    return `
+      <div class="sv-add" id="fin-sv-form" ${hidden ? "hidden" : ""}>
+        <span class="r-eyebrow" style="flex-basis:100%">(open a pool)</span>
+        <input id="sv-name" placeholder="New pool (e.g. Emergency fund)" maxlength="40" />
+        <input id="sv-target" type="number" step="0.01" placeholder="Target (optional)" style="width:150px" />
+        <button id="sv-create" class="r-mini">Create pool</button>
+      </div>
+      <p class="r-status" id="sv-msg" hidden></p>`;
+  }
+
   async function renderSavings() {
     const panel = el("fin-panel");
     const rm = (n) => "RM " + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     panel.innerHTML = `<p class="r-status">Loading…</p>`;
     const data = (await window.dmicoKvGet("finance_savings")) || {};
     const pools = Array.isArray(data.pools) ? data.pools : [];
@@ -1788,37 +2109,60 @@
     const total = pools.reduce((s, p) => s + bal(p), 0);
     const save = (next) => window.dmicoKvSet("finance_savings", { pools: next });
 
+    if (!pools.length) {
+      await loadSettings();
+      const now = new Date();
+      const [{ data: incRows }, { data: expRows }] = await Promise.all([
+        SB.from("finance_income").select("amount").eq("year", now.getFullYear()).eq("month", now.getMonth()).limit(1),
+        SB.from("finance_expenses").select("amount")
+          .gte("logged_at", new Date(now.getFullYear(), now.getMonth(), 1).toISOString())
+          .lt("logged_at", new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()),
+      ]);
+      const income = incRows && incRows[0] ? Number(incRows[0].amount) : 0;
+      const spent  = (expRows || []).reduce((s, e) => s + Number(e.amount || 0), 0);
+      let foot;
+      if (income > 0) {
+        const rule = activeRule();
+        const unspent    = income - spent;
+        const saveTarget = income * (rule.savings || 0) / 100;
+        foot = `<span class="r-micro">If you started this month</span><br>${rm(unspent)} of your allowance is unspent so far, and the rule suggests ${rm(saveTarget)}.`;
+      } else {
+        foot = "Once you log this month's allowance, this tab will show what's unspent so far.";
+      }
+      panel.innerHTML =
+        emptySkeleton({
+          icon: ICON_SAVINGS,
+          title: "No pools yet",
+          body: "A pool is a named jar you move money into, separate from your spending limit. The Save bar on Overview fills from here.",
+          ctaLabel: "Open a pool",
+          ctaId: "sv-empty-cta",
+          foot,
+        }) + savingsFormHTML(true);
+      el("sv-empty-cta").addEventListener("click", () => {
+        const form = el("fin-sv-form");
+        if (form) { form.hidden = false; el("sv-name")?.focus(); }
+      });
+      el("sv-create").addEventListener("click", () => createPool());
+      return;
+    }
+
     panel.innerHTML = `
-      <style>
-        .sv-head{font-size:1rem;margin:4px 0 12px;}
-        .sv-head b{font-variant-numeric:tabular-nums;}
-        .sv-head .sv-sub{font-size:0.8rem;opacity:0.6;}
-        .sv-pool{padding:12px 14px;border-radius:11px;background:rgba(127,127,127,0.06);margin-bottom:10px;}
-        .sv-pool-top{display:flex;align-items:center;gap:10px;}
-        .sv-pool-name{flex:1;font-weight:700;}
-        .sv-pool-bal{font-variant-numeric:tabular-nums;font-weight:700;}
-        .sv-x{background:transparent;border:none;color:inherit;opacity:0.45;cursor:pointer;font-size:1rem;}
-        .sv-bar-track{height:6px;border-radius:4px;background:rgba(127,127,127,0.18);margin:8px 0 4px;overflow:hidden;}
-        .sv-bar-fill{height:100%;background:#5aa36e;}
-        .sv-target{font-size:0.74rem;opacity:0.65;}
-        .sv-actions{display:flex;gap:6px;margin-top:8px;}
-        .sv-actions button{font:inherit;font-size:0.82rem;padding:4px 10px;border-radius:7px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;cursor:pointer;}
-        .sv-actions .sv-in{border-color:rgba(90,163,110,0.6);}
-        .sv-hist{margin-top:8px;font-size:0.76rem;opacity:0.7;}
-        .sv-hist-row{display:flex;justify-content:space-between;padding:2px 0;}
-        .sv-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
-        .sv-add input{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
-        .sv-add #sv-name{flex:1;min-width:140px;}
-        .sv-add button{font:inherit;font-weight:600;padding:6px 14px;border-radius:8px;border:none;background:#5b8def;color:#fff;cursor:pointer;}
-      </style>
       <div class="sv-head">Total saved: <b>${rm(total)}</b><span class="sv-sub"> · across ${pools.length} pool${pools.length === 1 ? "" : "s"}</span></div>
       <div id="sv-list"></div>
-      <div class="sv-add">
-        <input id="sv-name" placeholder="New pool (e.g. Emergency fund)" maxlength="40" />
-        <input id="sv-target" type="number" step="0.01" placeholder="Target (optional)" style="width:150px" />
-        <button id="sv-create">Create pool</button>
-      </div>
-      <p class="r-status" id="sv-msg" hidden></p>`;
+      ${savingsFormHTML(false)}`;
+    el("sv-create").addEventListener("click", () => createPool());
+
+    async function createPool() {
+      const name = el("sv-name").value.trim();
+      const msg = el("sv-msg");
+      if (!name) { msg.hidden = false; msg.textContent = "Give the pool a name."; return; }
+      const tRaw = el("sv-target").value;
+      const target = tRaw && parseFloat(tRaw) > 0 ? parseFloat(tRaw) : null;
+      pools.push({ id: Date.now().toString(36), name, target, history: [] });
+      const ok = await save(pools);
+      if (ok) renderSavings();
+      else { msg.hidden = false; msg.textContent = "Couldn't save — try again."; }
+    }
 
     const listEl = el("sv-list");
 
@@ -1839,14 +2183,14 @@
             <div class="sv-pool-top">
               <span class="sv-pool-name">${esc(p.name)}</span>
               <span class="sv-pool-bal">${rm(b)}</span>
-              <button class="sv-x" data-del="${i}" title="Delete pool">✕</button>
+              <button class="r-mini r-del sv-x" data-del="${i}" title="Delete pool">×</button>
             </div>
             ${tgt > 0 ? `<div class="sv-bar-track"><div class="sv-bar-fill" style="width:${pct}%"></div></div>
-              <div class="sv-target">${pct}% of ${rm(tgt)}${b >= tgt ? " · reached 🎉" : " · " + rm(tgt - b) + " to go"}</div>` : ""}
+              <div class="sv-target">${pct}% of ${rm(tgt)}${b >= tgt ? " · target reached" : " · " + rm(tgt - b) + " to go"}</div>` : ""}
             <div class="sv-actions">
-              <button class="sv-in" data-in="${i}">+ Deposit</button>
-              <button data-out="${i}">− Withdraw</button>
-              <button data-tgt="${i}">Target</button>
+              <button class="r-mini" data-in="${i}">+ Deposit</button>
+              <button class="r-mini" data-out="${i}">− Withdraw</button>
+              <button class="r-mini" data-tgt="${i}">Target</button>
             </div>
             ${hist ? `<div class="sv-hist">${hist}</div>` : ""}
           </div>`;
