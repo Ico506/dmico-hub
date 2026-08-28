@@ -18,6 +18,8 @@
   let _cache = null;
   let _cacheAt = 0;
   const CACHE_MS = 60000;
+  // Remembered so a background refresh can re-query without the caller passing it.
+  let _lastSb = null;
 
   const esc = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -42,6 +44,7 @@
 
   async function computeState(sb) {
     const now = Date.now();
+    if (sb) _lastSb = sb;
     if (_cache && now - _cacheAt < CACHE_MS) return _cache;
 
     const t = todayISO();
@@ -59,19 +62,33 @@
       window.dmicoKvGet("week_calendar"),
     ]);
 
-    // 1. Jade's own alerts from today. She has already decided these matter, so they
-    //    lead, and we do not recompute her thresholds here.
+    // 1. Jade's alerts, but ONLY for things this file cannot check itself.
+    //
+    //    kv 'jade_alerts' is a LOG OF EVENTS THAT FIRED, not live state. Once Jade
+    //    posts "reflection not logged" at 21:00, that entry sits in kv for the rest
+    //    of the day, so replaying it verbatim kept showing resolved items forever.
+    //    Anything computed below (mood, reflection, budget, digests) is read live
+    //    from source every time, so the LOCAL check is the truth and Jade's copy is
+    //    ignored. She only fills the gaps for rules the hub has no local equivalent
+    //    of, and even those are re-validated where possible.
+    const LOCALLY_CHECKED = new Set([
+      "mood_missing", "reflection_missing",
+      "budget_80", "budget_100", "digest_landed",
+    ]);
     const aItems = (alerts && Array.isArray(alerts.items)) ? alerts.items : [];
-    aItems.filter((a) => String(a.ts || "").slice(0, 10) === t).forEach((a) => {
-      items.push({
-        key: `jade:${a.id}`,
-        module: moduleFromUrl(a.url),
-        text: a.text,
-        tone: "lit",
-        cta: "Open",
-        source: "jade",
+    aItems
+      .filter((a) => String(a.ts || "").slice(0, 10) === t)
+      .filter((a) => !LOCALLY_CHECKED.has(a.rule))
+      .forEach((a) => {
+        items.push({
+          key: `jade:${a.rule}`,   // keyed by rule, so a repeat fire cannot duplicate
+          module: moduleFromUrl(a.url),
+          text: a.text,
+          tone: "lit",
+          cta: "Open",
+          source: "jade",
+        });
       });
-    });
 
     // 2. Today's logging: mood and reflection. Warm during the day, lit after 21:00,
     //    because before evening an unlogged reflection is simply not due yet.
@@ -172,13 +189,17 @@
       if (todaysLeft[1]) thenUp = { title: todaysLeft[1].title, start: todaysLeft[1].start };
     }
 
-    // Deduplicate: if Jade already flagged something, drop our local copy of it so it
-    // is not said twice on the same screen.
-    const jadeText = new Set(items.filter((i) => i.source === "jade")
-      .map((i) => i.text.toLowerCase()));
-    const deduped = items.filter((i) =>
-      i.source === "jade" ||
-      !Array.from(jadeText).some((jt) => overlap(jt, i.text.toLowerCase())));
+    // Deduplicate by key. The old version dropped the LOCAL item whenever Jade had
+    // said something similar, which is exactly backwards: her entry is a historical
+    // event and the local one is live. Jade's rules no longer overlap the local
+    // checks at all (see LOCALLY_CHECKED above), so this is now just a safety net
+    // against the same key being pushed twice.
+    const seenKeys = new Set();
+    const deduped = items.filter((i) => {
+      if (seenKeys.has(i.key)) return false;
+      seenKeys.add(i.key);
+      return true;
+    });
 
     const order = { lit: 0, warm: 1 };
     deduped.sort((a, b) => (order[a.tone] ?? 2) - (order[b.tone] ?? 2));
@@ -196,12 +217,6 @@
     return _cache;
   }
 
-  // Crude but effective: two lines are "the same thing" if they share a distinctive word.
-  function overlap(a, b) {
-    const keys = ["mood", "reflection", "budget", "limit", "pick", "digest"];
-    return keys.some((k) => a.includes(k) && b.includes(k));
-  }
-
   function moduleFromUrl(url) {
     const m = String(url || "").match(/#do=tab:([a-z]+)/i);
     if (m) return m[1];
@@ -212,6 +227,37 @@
 
   window.dmicoComputeState = computeState;
   window.dmicoInvalidateState = () => { _cache = null; };
+
+  /* Re-read state when the hub comes back into view.
+     Without this, the screen is a snapshot from whenever it last rendered. Log a
+     reflection in Discord, switch back to the hub, and it would still be asking you
+     to log it, because nothing told the page to look again. Fires on tab focus and
+     on returning to an installed PWA from the background, then repaints Home and
+     the rail. Cheap: the 60s cache still absorbs rapid switching. */
+  let _refreshing = false;
+  async function refreshNow() {
+    if (_refreshing || document.hidden) return;
+    _refreshing = true;
+    try {
+      _cache = null;
+      const host = document.getElementById("dash-now");
+      if (host && window.renderNowBlock) await window.renderNowBlock(host, _lastSb);
+      if (window.dmicoRefreshRail) await window.dmicoRefreshRail(_lastSb);
+    } catch (e) {
+      console.error("state refresh failed", e);
+    } finally {
+      _refreshing = false;
+    }
+  }
+  window.dmicoRefreshState = refreshNow;
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshNow();
+  });
+  window.addEventListener("focus", refreshNow);
+  // Slow poll while the hub is actually open and visible, so a long session does
+  // not drift. Five minutes is well under the pace anything here changes.
+  setInterval(() => { if (!document.hidden) refreshNow(); }, 300000);
 
   /* ── the rail / bottom-bar attention map ──────────────────── */
 
