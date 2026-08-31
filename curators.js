@@ -151,23 +151,21 @@
     const s = document.createElement("style");
     s.id = "cur-styles";
     s.textContent = `
-      .cur-domains{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;}
-      .cur-domain{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .8rem;
-        border-radius:1rem;border:1px solid rgba(128,128,128,.35);background:rgba(128,128,128,.06);
-        color:inherit;font:inherit;font-size:.92rem;cursor:pointer;}
-      .cur-domain.current{background:rgba(120,150,210,.18);border-color:rgba(120,150,210,.55);font-weight:600;}
-      .cur-label{display:block;margin:.7rem 0 .3rem;font-weight:600;font-size:.92rem;}
+      .cur-label{display:block;margin:.9rem 0 .3rem;font-size:.62rem;letter-spacing:.14em;
+        text-transform:uppercase;color:var(--ink-faint);font-weight:700;}
       .cur-area,.cur-input{width:100%;box-sizing:border-box;font:inherit;
-        padding:.5rem .6rem;border:1px solid rgba(128,128,128,.35);border-radius:.5rem;
-        background:rgba(128,128,128,.06);color:inherit;resize:vertical;}
+        padding:.5rem .6rem;border:1px solid var(--line);border-radius:var(--radius);
+        background:var(--surface-2);color:var(--ink);resize:vertical;}
+      .cur-area:focus-visible,.cur-input:focus-visible{outline:none;border-color:var(--accent);
+        box-shadow:0 0 0 3px var(--accent-wash);}
       .cur-input{max-width:10rem;}
       .cur-check{display:flex;align-items:center;gap:.5rem;margin-top:.7rem;font-size:.92rem;}
       .cur-check input{width:auto;}
       .cur-chips{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.4rem 0;}
-      .cur-chip{display:inline-block;padding:.2rem .55rem;border-radius:1rem;font-size:.82rem;
-        border:1px solid rgba(128,128,128,.35);}
-      .cur-chip.up{background:rgba(70,170,110,.16);}
-      .cur-chip.down{background:rgba(200,90,90,.16);}
+      .cur-chip{display:inline-block;padding:.2rem .55rem;border-radius:var(--radius-pill);font-size:.82rem;
+        border:1px solid var(--line);color:var(--ink-soft);}
+      .cur-chip.up{background:var(--accent-wash);color:var(--accent-deep);border-color:transparent;}
+      .cur-chip.down{background:rgba(138, 63, 30, 0.1);color:var(--clay);border-color:transparent;}
       .cur-snaprows{font-size:.92rem;line-height:1.55;margin:.2rem 0 .5rem;}
     `;
     document.head.appendChild(s);
@@ -179,18 +177,18 @@
     injectStyles();
 
     const switcher = DOMAIN_ORDER.map((d) =>
-      `<button class="cur-domain ${d === currentDomain ? "current" : ""}" data-domain="${d}">${META[d].emoji} ${esc(META[d].label)}</button>`
+      `<button class="r-chip${d === currentDomain ? " on" : ""}" data-domain="${d}">${META[d].emoji} ${esc(META[d].label)}</button>`
     ).join("");
 
     root.innerHTML = `
-      <div class="cur-domains" role="tablist">${switcher}</div>
+      <div class="r-chips" role="tablist">${switcher}</div>
       <div class="r-tabs" role="tablist">
         <button class="r-tab current" data-tab="digest">Latest digest</button>
         <button class="r-tab" data-tab="taste">Taste profile</button>
       </div>
       <div id="cur-panel"></div>`;
 
-    root.querySelectorAll(".cur-domain").forEach((b) =>
+    root.querySelectorAll("[data-domain]").forEach((b) =>
       b.addEventListener("click", () => {
         if (b.dataset.domain === currentDomain) return;
         currentDomain = b.dataset.domain;

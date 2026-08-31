@@ -11,9 +11,16 @@ window.renderWeek = async function (container, sb) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const todayISO = new Date().toISOString().split("T")[0];
 
+  // Five categories, five swatches drawn from the existing token palette (no new
+  // hues introduced). This is a bounded, explicitly-keyed legend (see .wk-legend),
+  // not ambient chrome, so spending the accent/lantern/amber colours here is
+  // safe: a reader learns the key once and reads the calendar by position, not
+  // by hunting for meaning in colour. The two highest-frequency categories
+  // (anchor, event) stay on the calm ink scale so most of the week reads quiet;
+  // deliberate blocks (focus, crunch, play) get the three that carry meaning.
   const TYPE_COLOR = {
-    anchor: "#5b8def", focus: "#3aa675", crunch: "#d98a2b",
-    entertainment: "#9b6dd6", event: "#8a8f98",
+    anchor: "var(--ink-faint)", focus: "var(--accent)", crunch: "var(--amber)",
+    entertainment: "var(--lantern)", event: "var(--ink)",
   };
   const TYPE_LABEL = {
     anchor: "Anchor", focus: "Focus", crunch: "Study",
@@ -22,42 +29,39 @@ window.renderWeek = async function (container, sb) {
 
   container.innerHTML = `
     <style>
-      #week{display:flex;flex-direction:column;gap:14px;}
+      #week{display:flex;flex-direction:column;gap:16px;}
       #week .wk-top{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;}
-      #week .wk-range{font-size:1.05rem;font-weight:700;}
-      #week .wk-updated{font-size:0.74rem;opacity:0.55;}
-      #week .wk-tog{font:inherit;font-size:0.74rem;font-weight:600;padding:4px 10px;border-radius:7px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;cursor:pointer;opacity:0.75;}
-      #week .wk-tog.on{background:rgba(91,141,239,0.2);border-color:transparent;opacity:1;}
-      #week .wk-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-radius:12px;background:rgba(127,127,127,0.06);}
-      #week .wk-add input,#week .wk-add select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
+      #week .wk-range{font-family:var(--display);font-size:1.1rem;font-weight:700;color:var(--ink);}
+      #week .wk-updated{font-size:0.74rem;color:var(--ink-faint);}
+      #week .wk-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+      #week .wk-add input,#week .wk-add select{font:inherit;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface-2);color:var(--ink);}
+      #week .wk-add input:focus-visible,#week .wk-add select:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash);}
       #week .wk-add input#wk-t{flex:1;min-width:150px;}
-      #week .wk-add button{font:inherit;font-weight:600;padding:6px 14px;border-radius:8px;border:none;background:#5b8def;color:#fff;cursor:pointer;}
-      #week .wk-add button:disabled{opacity:0.5;cursor:default;}
-      #week .wk-msg{font-size:0.78rem;opacity:0.8;margin:0;}
+      #week .wk-msg{font-size:0.78rem;color:var(--ink-soft);margin:0;}
       #week .wk-grid{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px;}
-      #week .wk-col{border-radius:12px;background:rgba(127,127,127,0.06);padding:10px 8px;min-height:180px;display:flex;flex-direction:column;}
-      #week .wk-col--today{background:rgba(91,141,239,0.12);outline:1px solid rgba(91,141,239,0.35);}
-      #week .wk-dh{font-weight:600;font-size:0.85rem;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;opacity:0.85;}
-      #week .wk-dh .num{opacity:0.55;font-size:0.95rem;}
+      #week .wk-col{border-radius:var(--radius);background:var(--paper-deep);border:1px solid var(--line);padding:10px 8px;min-height:180px;display:flex;flex-direction:column;}
+      #week .wk-col--today{background:var(--surface);border-color:var(--lantern);}
+      #week .wk-dh{font-weight:700;font-size:0.85rem;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;color:var(--ink-soft);}
+      #week .wk-dh .num{color:var(--ink-faint);font-size:0.95rem;}
       #week .wk-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;}
-      #week .wk-ev{position:relative;font-size:0.76rem;line-height:1.3;padding:5px 8px;border-radius:6px;background:rgba(127,127,127,0.09);border-left:3px solid #8a8f98;}
-      #week .wk-ev .t{display:block;font-variant-numeric:tabular-nums;opacity:0.65;font-size:0.7rem;}
-      #week .wk-ev .ttl{font-weight:500;}
-      #week .wk-del{position:absolute;top:3px;right:4px;border:none;background:transparent;color:inherit;opacity:0.35;cursor:pointer;font-size:0.8rem;line-height:1;padding:2px;}
-      #week .wk-del:hover{opacity:0.9;}
+      #week .wk-ev{position:relative;font-size:0.76rem;line-height:1.3;padding:5px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--ink-faint);}
+      #week .wk-ev .t{display:block;font-variant-numeric:tabular-nums;color:var(--ink-faint);font-size:0.7rem;}
+      #week .wk-ev .ttl{font-weight:500;color:var(--ink);}
+      #week .wk-del{position:absolute;top:3px;right:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--ink-faint);cursor:pointer;font-size:0.8rem;line-height:1;padding:0;border-radius:6px;transition:background .16s ease,color .16s ease;}
+      #week .wk-del:hover{background:rgba(138, 63, 30, 0.12);color:var(--clay);}
       #week .wk-ev[data-removing="1"]{opacity:0.4;}
-      #week .wk-empty{font-size:0.74rem;opacity:0.3;text-align:center;margin-top:8px;}
-      #week .wk-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:0.74rem;opacity:0.8;}
+      #week .wk-empty{font-size:0.74rem;color:var(--ink-faint);text-align:center;margin-top:8px;}
+      #week .wk-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:0.74rem;color:var(--ink-soft);}
       #week .wk-key{display:inline-flex;align-items:center;gap:5px;}
       #week .wk-key i{width:10px;height:10px;border-radius:2px;display:inline-block;}
-      #week .wk-blank{opacity:0.5;font-size:0.9rem;padding:30px 0;text-align:center;}
+      #week .wk-blank{color:var(--ink-faint);font-size:0.9rem;padding:30px 0;text-align:center;}
     </style>
     <div id="week">
       <div class="wk-top">
         <span class="wk-range" id="wk-range">Your week</span>
-        <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <button class="wk-tog on" data-src="week_calendar">This week</button>
-          <button class="wk-tog" data-src="week_calendar_next">Next week</button>
+        <span class="r-chips" style="margin-bottom:0;align-items:center">
+          <button class="r-chip on" data-src="week_calendar">This week</button>
+          <button class="r-chip" data-src="week_calendar_next">Next week</button>
           <span class="wk-updated" id="wk-updated"></span>
         </span>
       </div>
@@ -76,10 +80,10 @@ window.renderWeek = async function (container, sb) {
           <option value="once" selected>One-time</option>
           <option value="weekly">Weekly</option>
         </select>
-        <button id="wk-addbtn">Add block</button>
+        <button id="wk-addbtn" class="btn-primary r-btn">Add block</button>
       </div>
       <p class="wk-msg" id="wk-msg" hidden></p>
-      <details class="wk-ripple-wrap" style="margin:2px 0"><summary style="cursor:pointer;font-size:0.85rem;font-weight:600;opacity:0.85">🌀 Ripple my day (a sudden plan came up)</summary><div id="wk-ripple" style="margin-top:10px"></div></details>
+      <details class="wk-ripple-wrap" style="margin:2px 0"><summary style="cursor:pointer;font-size:0.85rem;font-weight:700;color:var(--ink-soft)">Ripple my day (a sudden plan came up)</summary><div id="wk-ripple" style="margin-top:10px"></div></details>
       <div id="wk-body"><p class="wk-blank">Loading your week…</p></div>
       <div class="wk-legend" id="wk-legend"></div>
     </div>`;
@@ -199,10 +203,10 @@ window.renderWeek = async function (container, sb) {
 
   await draw();
 
-  container.querySelectorAll(".wk-tog").forEach((btn) =>
+  container.querySelectorAll("[data-src]").forEach((btn) =>
     btn.addEventListener("click", async () => {
       sourceKey = btn.dataset.src;
-      container.querySelectorAll(".wk-tog").forEach((b) => b.classList.toggle("on", b === btn));
+      container.querySelectorAll("[data-src]").forEach((b) => b.classList.toggle("on", b === btn));
       await draw();
     })
   );

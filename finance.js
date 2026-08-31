@@ -1634,6 +1634,7 @@
   const ICON_GOAL = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.5"></circle><circle cx="12" cy="12" r="3.4"></circle><path d="M12 4.5V2.6M12 21.4v-1.9M4.5 12H2.6M21.4 12h-1.9"></path></svg>`;
   const ICON_SAVINGS = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 9.5h15v9.2a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1Z"></path><path d="M6.6 9.5V6.2a1 1 0 0 1 1-1h8.8a1 1 0 0 1 1 1v3.3"></path><path d="M12 12.6v3.6"></path></svg>`;
   const ICON_INVEST = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19h15"></path><path d="M7 19v-5.4M12 19V9.4M17 19v-8"></path></svg>`;
+  const ICON_SUBS = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14" rx="2"></rect><path d="M4 9.5h16"></path><path d="M8 3.5v3M16 3.5v3"></path></svg>`;
 
   // Shared skeleton for a genuinely empty tab: hairline circle icon, one sentence of
   // what the tab is for, one olive action, one faint reassurance. No accent colour
@@ -1837,7 +1838,10 @@
   const escInv = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-  const INV_PALETTE = ["var(--accent)", "var(--lantern)", "#B08A2A", "var(--clay)", "var(--accent-deep)", "#6E8B7B", "#9C6B3F", "#7C6A4F"];
+  // All palette tokens. #6E8B7B and #9C6B3F were invented colours that exist nowhere in
+  // :root; the last two now reuse existing tokens at a different position in the cycle.
+  const INV_PALETTE = ["var(--accent)", "var(--lantern)", "var(--amber)", "var(--clay)",
+                       "var(--accent-deep)", "var(--ink-soft)", "var(--ink-faint)", "var(--paper-deep)"];
 
   function invFormHTML(hidden) {
     return `
@@ -2023,53 +2027,18 @@
   // ════════════════════════════════════════════════════════════
   //  SUBSCRIPTIONS TAB (QoL Item 1) — kv finance_subscriptions
   // ════════════════════════════════════════════════════════════
-  async function renderSubscriptions() {
-    const panel = el("fin-panel");
-    const rm = (n) => "RM " + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    panel.innerHTML = `<p class="r-status">Loading…</p>`;
-    const data = (await window.dmicoKvGet("finance_subscriptions")) || {};
-    const items = Array.isArray(data.items) ? data.items : [];
-    const monthly = (it) => it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0);
-    const committed = items.reduce((s, it) => s + monthly(it), 0);
-    panel.innerHTML = `
-      <style>
-        .subs-head{font-size:1rem;margin:4px 0 12px;}
-        .subs-head .subs-sub{font-size:0.8rem;opacity:0.6;}
-        .sub-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;background:rgba(127,127,127,0.06);margin-bottom:6px;}
-        .sub-row .sub-n{flex:1;font-weight:600;}
-        .sub-row .sub-a{font-variant-numeric:tabular-nums;}
-        .sub-row .sub-next{font-size:0.74rem;opacity:0.6;}
-        .sub-row .sub-del{background:transparent;border:none;color:inherit;opacity:0.5;cursor:pointer;}
-        .subs-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
-        .subs-add input,.subs-add select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
-        .subs-add #sub-name{flex:1;min-width:130px;}
-        .subs-add button{font:inherit;font-weight:600;padding:6px 14px;border-radius:8px;border:none;background:#5b8def;color:#fff;cursor:pointer;}
-      </style>
-      <div class="subs-head">Committed monthly: <b>${rm(committed)}</b><span class="subs-sub"> · ${rm(committed * 12)}/yr locked in</span></div>
-      <div id="subs-list"></div>
+  function subsFormHTML() {
+    return `
       <div class="subs-add">
         <input id="sub-name" placeholder="Name (e.g. Claude)" maxlength="40" />
         <input id="sub-amt" type="number" step="0.01" placeholder="Amount" style="width:110px" />
         <select id="sub-cycle"><option value="monthly">/ month</option><option value="yearly">/ year</option></select>
         <input id="sub-next" type="date" title="Next charge (optional)" />
-        <button id="sub-add">Add</button>
+        <button id="sub-add" class="r-mini">+ Add</button>
       </div>
       <p class="r-status" id="subs-msg" hidden></p>`;
-    const listEl = el("subs-list");
-    function renderList(its) {
-      listEl.innerHTML = its.length ? its.map((it, i) =>
-        `<div class="sub-row"><span class="sub-n">${esc(it.name)}</span><span class="sub-a">${rm(it.amount)} ${it.cycle === "yearly" ? "/yr" : "/mo"}</span>${it.next ? `<span class="sub-next">next ${esc(it.next)}</span>` : ""}<button class="sub-del" data-i="${i}" title="Remove">✕</button></div>`
-      ).join("") : `<p class="r-status">No subscriptions yet. Add the recurring ones you can't touch.</p>`;
-      listEl.querySelectorAll(".sub-del").forEach((b) => b.addEventListener("click", async () => {
-        const d = (await window.dmicoKvGet("finance_subscriptions")) || { items: [] };
-        d.items = Array.isArray(d.items) ? d.items : [];
-        d.items.splice(+b.dataset.i, 1);
-        await window.dmicoKvSet("finance_subscriptions", d);
-        renderSubscriptions();
-      }));
-    }
-    renderList(items);
+  }
+  function wireSubsForm() {
     el("sub-add").addEventListener("click", async () => {
       const name = el("sub-name").value.trim();
       const amt = parseFloat(el("sub-amt").value);
@@ -2081,6 +2050,70 @@
       const ok = await window.dmicoKvSet("finance_subscriptions", d);
       if (ok) renderSubscriptions(); else { msg.hidden = false; msg.textContent = "Couldn't save — try again."; }
     });
+  }
+
+  async function renderSubscriptions() {
+    const panel = el("fin-panel");
+    const rm = (n) => "RM " + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const escS = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    panel.innerHTML = `<p class="r-status">Loading…</p>`;
+    const data = (await window.dmicoKvGet("finance_subscriptions")) || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    const monthly = (it) => it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0);
+    const committed = items.reduce((s, it) => s + monthly(it), 0);
+
+    if (!items.length) {
+      panel.innerHTML = emptySkeleton({
+        icon: ICON_SUBS,
+        title: "No subscriptions tracked",
+        body: "Add the recurring charges you can't touch. They show up here, on Overview's committed line, and as a faint reserve marker on your Needs bar.",
+        ctaLabel: "Add a subscription",
+        ctaId: "subs-empty-cta",
+      }) + subsFormHTML();
+      el("subs-empty-cta").addEventListener("click", () => { const n = el("sub-name"); if (n) n.focus(); });
+      wireSubsForm();
+      return;
+    }
+
+    const now = new Date();
+    const withDays = items.map((it, i) => {
+      const days = it.next ? Math.ceil((new Date(it.next) - now) / 86400000) : null;
+      return { ...it, _i: i, days };
+    }).sort((a, b) => {
+      if (a.days === null) return 1;
+      if (b.days === null) return -1;
+      return a.days - b.days;
+    });
+    const rows = withDays.map((it) => {
+      const soon = it.days !== null && it.days >= 0 && it.days <= 3;
+      const when = it.days === null ? "" : it.days === 0 ? "renews today" : it.days === 1 ? "renews tomorrow" : it.days < 0 ? "overdue" : `${new Date(it.next).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+      return `
+        <div class="fin-committed-row">
+          <div class="fin-committed-dot${soon ? " fin-dot-soon" : ""}"></div>
+          <div class="fin-committed-name">${escS(it.name)}${it.cycle === "yearly" ? ` · /yr` : ""}</div>
+          ${when ? `<div class="fin-committed-when">${escS(when)}</div>` : ""}
+          <div class="fin-committed-amtv">${rm(monthly(it)).replace("RM ", "")}</div>
+          <button class="r-row-del sub-del" data-i="${it._i}" title="Remove" aria-label="Remove ${escS(it.name)}">${DEL_ICON_SVG}</button>
+        </div>`;
+    }).join("");
+
+    panel.innerHTML = `
+      <span class="r-eyebrow">(committed)</span>
+      <div class="fin-committed-total">
+        <span class="fin-committed-amt">${rm(committed)}</span>
+        <span class="fin-committed-sub">a month · ${rm(committed * 12)}/yr locked in</span>
+      </div>
+      ${rows}
+      ${subsFormHTML()}`;
+    wireSubsForm();
+
+    panel.querySelectorAll(".sub-del").forEach((b) => b.addEventListener("click", async () => {
+      const d = (await window.dmicoKvGet("finance_subscriptions")) || { items: [] };
+      d.items = Array.isArray(d.items) ? d.items : [];
+      d.items.splice(+b.dataset.i, 1);
+      await window.dmicoKvSet("finance_subscriptions", d);
+      renderSubscriptions();
+    }));
   }
 
   // ════════════════════════════════════════════════════════════
@@ -2263,17 +2296,8 @@
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const recurring = cfg.mode === "recurring";
     panel.innerHTML = `
-      <style>
-        .fin-review h4{margin:6px 0 8px;font-size:0.95rem;}
-        .fin-review label.rev-rec{display:flex;align-items:center;gap:8px;font-size:0.88rem;margin-bottom:10px;}
-        .fin-review .rev-when select,.fin-review .rev-when input{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
-        .fin-review .rev-actions{display:flex;gap:8px;margin-top:12px;}
-        .fin-review button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:none;background:#3aa675;color:#fff;cursor:pointer;}
-        .fin-review button.ghost{background:transparent;border:1px solid rgba(127,127,127,0.35);color:inherit;}
-        .fin-review .rev-last{font-size:0.85rem;padding:12px 14px;border-radius:10px;background:rgba(127,127,127,0.06);line-height:1.5;}
-      </style>
       <div class="fin-review">
-        <h4>When should the review run?</h4>
+        <span class="r-eyebrow">(schedule)</span>
         <label class="rev-rec"><input type="checkbox" id="rev-recurring" ${recurring ? "checked" : ""}/> Recurring weekly</label>
         <div class="rev-when">
           <span id="rev-weekly" ${recurring ? "" : "hidden"}>
@@ -2284,10 +2308,15 @@
             <input id="rev-at" type="datetime-local" value="${esc(cfg.runAt || "")}" />
           </span>
         </div>
-        <div class="rev-actions"><button id="rev-save">Save schedule</button><button class="ghost" id="rev-run">Run now</button></div>
+        <div class="rev-actions">
+          <button id="rev-save" class="btn-primary r-btn">Save schedule</button>
+          <button id="rev-run" class="r-mini">Run now</button>
+        </div>
         <p class="r-status" id="rev-msg" hidden></p>
-        <h4 style="margin-top:18px">Latest review</h4>
-        <div class="rev-last" id="rev-last">${last && last.text ? esc(last.text).replace(/\n/g, "<br>") : `<span class="r-status">No review yet. Set a schedule or hit Run now.</span>`}</div>
+        <span class="r-eyebrow" style="margin-top:22px;display:block">(latest review)</span>
+        <div class="r-card" style="margin-top:10px">
+          <div class="rev-last" id="rev-last">${last && last.text ? esc(last.text).replace(/\n/g, "<br>") : `<span class="r-status">No review yet. Set a schedule or hit Run now.</span>`}</div>
+        </div>
       </div>`;
     const recChk = el("rev-recurring");
     recChk.addEventListener("change", () => { el("rev-weekly").hidden = !recChk.checked; el("rev-once").hidden = recChk.checked; });

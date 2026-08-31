@@ -71,57 +71,55 @@ window.renderLife = async function (container, sb) {
 
   container.innerHTML = `
     <style>
-      #life{display:flex;flex-direction:column;gap:26px;max-width:780px;}
+      #life{display:flex;flex-direction:column;gap:28px;max-width:780px;}
       #life section{display:flex;flex-direction:column;gap:10px;}
-      #life h3{margin:0;font-size:0.98rem;font-weight:700;}
-      #life .sub{font-size:0.78rem;opacity:0.6;margin:-4px 0 2px;}
-      #life .msg{font-size:0.78rem;opacity:0.85;margin:2px 0 0;}
+      #life .sub{font-size:0.78rem;color:var(--ink-soft);margin:-4px 0 2px;}
+      #life .msg{font-size:0.78rem;color:var(--ink-soft);margin:2px 0 0;}
       #life .moods{display:flex;gap:8px;flex-wrap:wrap;}
-      #life .mood{font-size:1.6rem;line-height:1;padding:8px 10px;border-radius:12px;background:rgba(127,127,127,0.08);border:1px solid transparent;cursor:pointer;}
-      #life .mood.on{background:rgba(91,141,239,0.18);border-color:rgba(91,141,239,0.4);}
-      #life input[type=text],#life textarea{font:inherit;width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;box-sizing:border-box;}
+      #life .mood{font-size:1.5rem;line-height:1;padding:8px 12px;border-radius:var(--radius);background:var(--surface-2);border:1px solid var(--line);cursor:pointer;}
+      #life .mood.on{background:var(--accent);border-color:var(--accent);}
+      #life input[type=text],#life textarea{font:inherit;width:100%;padding:9px 12px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface-2);color:var(--ink);box-sizing:border-box;}
+      #life input[type=text]:focus-visible,#life textarea:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash);}
       #life textarea{min-height:54px;resize:vertical;}
-      #life button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:none;background:#5b8def;color:#fff;cursor:pointer;}
-      #life button.ghost{background:transparent;border:1px solid rgba(127,127,127,0.35);color:inherit;}
-      #life .suggestion{font-size:0.86rem;padding:10px 12px;border-radius:10px;background:rgba(58,166,117,0.12);}
-      #life .done{font-size:0.9rem;padding:12px 14px;border-radius:10px;background:rgba(58,166,117,0.12);}
-      #life .done .reopen{font-size:0.76rem;opacity:0.65;margin-top:4px;}
+      #life .suggestion{font-size:0.86rem;color:var(--ink-soft);padding:2px 0 0;}
       #life .trend{display:flex;gap:4px;flex-wrap:wrap;font-size:1.1rem;}
       #life .q{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
-      #life .q label{font-size:0.85rem;font-weight:500;}
+      #life .q label{font-size:0.85rem;font-weight:500;color:var(--ink);}
       #life .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-      #life .hist{display:flex;flex-direction:column;gap:8px;}
-      #life .hist-item{padding:8px 12px;border-radius:10px;background:rgba(127,127,127,0.06);font-size:0.82rem;}
-      #life .hist-date{font-size:0.72rem;opacity:0.55;margin-bottom:3px;}
-      #life .note{font-size:0.74rem;opacity:0.5;}
-      #life .life-hist-d{border-radius:10px;background:rgba(127,127,127,0.04);padding:8px 12px;}
-      #life .life-hist-d summary{cursor:pointer;font-size:0.85rem;font-weight:600;opacity:0.85;}
-      #life .life-hist-d[open] summary{margin-bottom:6px;}
+      #life .reopen{font-size:0.76rem;color:var(--ink-faint);margin-top:4px;}
+      #life .life-hist-d summary{cursor:pointer;font-size:0.85rem;font-weight:700;color:var(--ink-soft);}
+      #life .life-hist-d[open] summary{margin-bottom:8px;}
     </style>
     <div id="life">
+      <div class="r-well" id="life-state">
+        <div class="r-well-cell"><span class="r-micro">Mood</span><div class="r-well-val" id="life-state-mood">—</div></div>
+        <div class="r-well-cell"><span class="r-micro">Journal</span><div class="r-well-val" id="life-state-journal">—</div></div>
+        <div class="r-well-cell"><span class="r-micro">Reflection</span><div class="r-well-val" id="life-state-reflect">—</div></div>
+      </div>
+
       <section>
-        <h3>🌤️ Mood</h3>
+        <span class="r-eyebrow">Mood</span>
         <div id="life-mood"></div>
         <p class="sub" style="margin-top:6px">Recent trend</p>
-        <div class="trend" id="life-trend"><span class="note">No entries yet.</span></div>
+        <div class="trend" id="life-trend"><span class="r-status">No entries yet.</span></div>
       </section>
 
       <section>
-        <h3>📓 Journal</h3>
+        <span class="r-eyebrow">Journal</span>
         <div id="life-journal-top"></div>
       </section>
 
       <section>
-        <h3>🌙 Reflection</h3>
+        <span class="r-eyebrow">Reflection</span>
         <div id="life-reflect-top"></div>
       </section>
 
       <section>
-        <h3>🗂️ History</h3>
+        <span class="r-eyebrow">History</span>
         <details class="life-hist-d"><summary>Past journal entries</summary>
-          <div class="hist" id="life-j-hist" style="margin-top:8px"><span class="note">Loading…</span></div></details>
+          <div class="r-row-list" id="life-j-hist" style="margin-top:8px"><span class="r-status">Loading…</span></div></details>
         <details class="life-hist-d"><summary>Past reflections</summary>
-          <div class="hist" id="life-r-hist" style="margin-top:8px"><span class="note">Loading…</span></div></details>
+          <div class="r-row-list" id="life-r-hist" style="margin-top:8px"><span class="r-status">Loading…</span></div></details>
       </section>
     </div>`;
 
@@ -137,12 +135,22 @@ window.renderLife = async function (container, sb) {
   const reflectDoneToday = !!(reflectData && reflectData.daily && reflectData.daily[todayISO] && reflectData.daily[todayISO].completed);
   const journaledThisWeek = journalEntries.some((e) => e.week === thisWeekMonday);
 
+  const stateMoodEl = document.getElementById("life-state-mood");
+  if (stateMoodEl) {
+    const m = moodToday ? (MOODS.find((x) => x[1] === moodToday.rating) || ["•", 0, ""]) : null;
+    stateMoodEl.textContent = m ? `${m[0]} ${m[2]}` : "Not yet";
+  }
+  const stateJournalEl = document.getElementById("life-state-journal");
+  if (stateJournalEl) stateJournalEl.textContent = journaledThisWeek ? "Done" : "Open";
+  const stateReflectEl = document.getElementById("life-state-reflect");
+  if (stateReflectEl) stateReflectEl.textContent = reflectDoneToday ? "Done" : "Open";
+
   function renderTrend(entries) {
     const last = (entries || []).slice(-14);
     const tEl = document.getElementById("life-trend");
     tEl.innerHTML = last.length
       ? last.map((e) => `<span title="${esc(e.date)}${e.word ? " · " + esc(e.word) : ""}">${(MOODS.find((m) => m[1] === e.rating) || ["•"])[0]}</span>`).join("")
-      : `<span class="note">No entries yet.</span>`;
+      : `<span class="r-status">No entries yet.</span>`;
   }
   renderTrend(moodEntries);
 
@@ -150,13 +158,13 @@ window.renderLife = async function (container, sb) {
   const moodHost = document.getElementById("life-mood");
   if (moodToday) {
     const m = MOODS.find((x) => x[1] === moodToday.rating) || ["•", 0, ""];
-    moodHost.innerHTML = `<div class="done">✓ Mood logged today: ${m[0]} ${esc(m[2])}${moodToday.word ? ` — “${esc(moodToday.word)}”` : ""}
-      <div class="reopen">Opens again tomorrow.</div></div>`;
+    moodHost.innerHTML = `<p class="r-status">✓ Mood logged today: ${m[0]} ${esc(m[2])}${moodToday.word ? ` — “${esc(moodToday.word)}”` : ""}
+      <span class="reopen">Opens again tomorrow.</span></p>`;
   } else {
     moodHost.innerHTML = `
       <p class="sub">How are you, right now? Tap one — I'll suggest one small, kind way to work with it.</p>
       <div class="moods" id="life-moods"></div>
-      <div class="row"><input type="text" id="life-mood-note" placeholder="one word or short note (optional)" maxlength="60" /><button id="life-mood-save">Save</button></div>
+      <div class="row"><input type="text" id="life-mood-note" placeholder="one word or short note (optional)" maxlength="60" /><button id="life-mood-save" class="btn-primary r-btn">Save</button></div>
       <div class="suggestion" id="life-suggestion" hidden></div>
       <p class="msg" id="life-mood-msg" hidden></p>`;
     const moodsEl = document.getElementById("life-moods");
@@ -191,8 +199,8 @@ window.renderLife = async function (container, sb) {
       setTimeout(() => {
         const mm = MOODS.find((x) => x[1] === rating) || ["•", 0, ""];
         const note = (document.getElementById("life-mood-note") || {}).value || "";
-        moodHost.innerHTML = `<div class="done">✓ Mood logged today: ${mm[0]} ${esc(mm[2])}${note ? ` — “${esc(note.trim())}”` : ""}
-          <div class="reopen">Opens again tomorrow.</div></div>${sugEl.outerHTML}`;
+        moodHost.innerHTML = `<p class="r-status">✓ Mood logged today: ${mm[0]} ${esc(mm[2])}${note ? ` — “${esc(note.trim())}”` : ""}
+          <span class="reopen">Opens again tomorrow.</span></p>${sugEl.outerHTML}`;
       }, 1200);
     };
     moodsEl.querySelectorAll(".mood").forEach((btn) =>
@@ -219,18 +227,18 @@ window.renderLife = async function (container, sb) {
     const h = document.getElementById("life-j-hist");
     const list = (entries || []).slice().reverse().slice(0, 10);
     h.innerHTML = list.length
-      ? list.map((e) => `<div class="hist-item"><div class="hist-date">${esc(e.day || e.timestamp || "")}</div>${esc(e.content || "").replace(/\n/g, "<br>")}</div>`).join("")
-      : `<span class="note">No entries yet — your first one's a tap away.</span>`;
+      ? list.map((e) => `<div class="r-row"><div class="r-row-main"><div class="r-micro">${esc(e.day || e.timestamp || "")}</div><div class="r-row-content">${esc(e.content || "").replace(/\n/g, "<br>")}</div></div></div>`).join("")
+      : `<span class="r-status">No entries yet — your first one's a tap away.</span>`;
   }
   renderJournalHistory(journalEntries);
   if (journaledThisWeek) {
-    jTop.innerHTML = `<div class="done">✓ You've journaled this week. <div class="reopen">Opens again next week.</div></div>`;
+    jTop.innerHTML = `<p class="r-status">✓ You've journaled this week. <span class="reopen">Opens again next week.</span></p>`;
   } else {
     let jPrompts = shuffle(JOURNAL_PROMPTS).slice(0, 3);
     jTop.innerHTML = `
-      <p class="sub">Answer what speaks to you. Leave the rest blank. <button class="ghost" id="life-j-shuffle" style="padding:3px 10px">↻ New prompts</button></p>
+      <p class="sub">Answer what speaks to you. Leave the rest blank. <button class="r-mini" id="life-j-shuffle">↻ New prompts</button></p>
       <div id="life-journal"></div>
-      <div class="row"><button id="life-j-save">Save entry</button></div>
+      <div class="row"><button id="life-j-save" class="btn-primary r-btn">Save entry</button></div>
       <p class="msg" id="life-j-msg" hidden></p>`;
     const jEl = document.getElementById("life-journal");
     const renderJournal = () => { jEl.innerHTML = jPrompts.map((p, i) => `<div class="q"><label>${esc(p)}</label><textarea data-i="${i}"></textarea></div>`).join(""); };
@@ -248,7 +256,7 @@ window.renderLife = async function (container, sb) {
       const ok = await window.dmicoKvSet("journal_data", data);
       if (ok) {
         renderJournalHistory(data.entries);
-        jTop.innerHTML = `<div class="done">✓ Journal entry saved. <div class="reopen">Opens again next week.</div></div>`;
+        jTop.innerHTML = `<p class="r-status">✓ Journal entry saved. <span class="reopen">Opens again next week.</span></p>`;
       } else { jMsg.hidden = false; jMsg.textContent = "Couldn't save — try again."; }
     });
   }
@@ -262,19 +270,19 @@ window.renderLife = async function (container, sb) {
       ? dates.map((d) => {
           const ans = daily[d].answers || {};
           const body = Object.values(ans).map((a) => `<div><em>${esc(a.prompt)}</em><br>${esc(a.answer)}</div>`).join("<br>");
-          return `<div class="hist-item"><div class="hist-date">${esc(d)}</div>${body || "<span class='note'>(no answers)</span>"}</div>`;
+          return `<div class="r-row"><div class="r-row-main"><div class="r-micro">${esc(d)}</div><div class="r-row-content">${body || "<span class='r-status'>(no answers)</span>"}</div></div></div>`;
         }).join("")
-      : `<span class="note">No reflections yet.</span>`;
+      : `<span class="r-status">No reflections yet.</span>`;
   }
   renderReflectHistory(reflectData && reflectData.daily ? reflectData.daily : {});
   if (reflectDoneToday) {
-    rTop.innerHTML = `<div class="done">✓ Reflection done for today. <div class="reopen">Opens again at your next daily reflection.</div></div>`;
+    rTop.innerHTML = `<p class="r-status">✓ Reflection done for today. <span class="reopen">Opens again at your next daily reflection.</span></p>`;
   } else {
     let rQs = shuffle(REFLECT_QUESTIONS).slice(0, 4);
     rTop.innerHTML = `
-      <p class="sub">Today's questions (they rotate). <button class="ghost" id="life-r-shuffle" style="padding:3px 10px">↻ Different questions</button></p>
+      <p class="sub">Today's questions (they rotate). <button class="r-mini" id="life-r-shuffle">↻ Different questions</button></p>
       <div id="life-reflect"></div>
-      <div class="row"><button id="life-r-save">Save reflection</button></div>
+      <div class="row"><button id="life-r-save" class="btn-primary r-btn">Save reflection</button></div>
       <p class="msg" id="life-r-msg" hidden></p>`;
     const rEl = document.getElementById("life-reflect");
     const renderReflect = () => { rEl.innerHTML = rQs.map((q, i) => `<div class="q"><label>${esc(q)}</label><textarea data-i="${i}"></textarea></div>`).join(""); };
@@ -294,7 +302,7 @@ window.renderLife = async function (container, sb) {
       const ok = await window.dmicoKvSet("reflections_data", data);
       if (ok) {
         renderReflectHistory(data.daily);
-        rTop.innerHTML = `<div class="done">✓ Reflection saved. The bot will send a summary shortly. <div class="reopen">Opens again at your next daily reflection.</div></div>`;
+        rTop.innerHTML = `<p class="r-status">✓ Reflection saved. The bot will send a summary shortly. <span class="reopen">Opens again at your next daily reflection.</span></p>`;
       } else { rMsg.hidden = false; rMsg.textContent = "Couldn't save — try again."; }
     });
   }

@@ -70,17 +70,6 @@
   async function renderLog() {
     const panel = el("ex-panel");
     panel.innerHTML = `
-      <style>
-        .ex-today-card{padding:9px 13px;border-radius:10px;background:rgba(91,141,239,0.10);font-size:0.86rem;margin-bottom:10px;}
-        .ex-today-card .ex-today-k{font-weight:600;opacity:0.7;margin-right:6px;}
-        .ex-today-card .ex-today-d{font-size:0.74rem;opacity:0.6;}
-        .ex-metab-card{padding:12px 14px;border-radius:10px;background:rgba(58,166,117,0.10);margin-bottom:12px;}
-        .ex-metab-row{display:flex;justify-content:space-between;font-size:0.88rem;padding:2px 0;}
-        .ex-metab-row .ex-metab-v{font-weight:700;font-variant-numeric:tabular-nums;}
-        .ex-metab-note{font-size:0.74rem;opacity:0.62;margin:8px 0 0;line-height:1.4;}
-        .ex-metab-empty{font-size:0.84rem;opacity:0.75;padding:12px 14px;border-radius:10px;background:rgba(127,127,127,0.06);margin-bottom:12px;}
-        .ex-log-period{font-size:0.68rem;opacity:0.65;border:1px solid rgba(127,127,127,0.3);border-radius:5px;padding:1px 5px;}
-      </style>
       <div class="r-form ex-addform">
         <div class="r-row2">
           <div class="r-field"><label>Weight (kg)</label><input id="ex-weight" type="number" min="0" step="0.1" placeholder="e.g. 68.5" /></div>
@@ -93,7 +82,7 @@
       <div id="ex-today"></div>
       <div id="ex-metab"></div>
       <div id="ex-chart"></div>
-      <div id="ex-list" class="r-list"></div>`;
+      <div id="ex-list"></div>`;
     if (el("ex-period")) el("ex-period").value = new Date().getHours() < 14 ? "AM" : "PM";
     el("ex-save").addEventListener("click", addWeight);
     await Promise.all([loadLogs(), loadProfile()]);
@@ -115,31 +104,44 @@
     const am = todays.filter((l) => l.period === "AM").slice(-1)[0];
     const pm = todays.filter((l) => l.period === "PM").slice(-1)[0];
     if (!am && !pm) { wrap.innerHTML = ""; return; }
-    let line = `<div class="ex-today-card"><span class="ex-today-k">Today</span>`;
-    line += am ? ` AM <b>${kg(am.weight_kg)}</b>` : " AM —";
-    line += " · ";
-    line += pm ? `PM <b>${kg(pm.weight_kg)}</b>` : "PM —";
-    if (am && pm) {
-      const delta = Number(pm.weight_kg) - Number(am.weight_kg);
-      line += ` <span class="ex-today-d">(${delta >= 0 ? "+" : ""}${delta.toFixed(1)} kg, normal daily water shift)</span>`;
-    }
-    line += "</div>";
-    wrap.innerHTML = line;
+    const delta = (am && pm) ? Number(pm.weight_kg) - Number(am.weight_kg) : null;
+    wrap.innerHTML = `
+      <div class="r-well">
+        <div class="r-well-cell">
+          <span class="r-micro">AM today</span>
+          <div class="r-well-val">${am ? kg(am.weight_kg) : "—"}</div>
+        </div>
+        <div class="r-well-cell">
+          <span class="r-micro">PM today</span>
+          <div class="r-well-val">${pm ? kg(pm.weight_kg) : "—"}</div>
+        </div>
+        <div class="r-well-cell">
+          <span class="r-micro">Shift</span>
+          <div class="r-well-val">${delta === null ? "—" : (delta >= 0 ? "+" : "") + delta.toFixed(1) + " kg"}</div>
+        </div>
+      </div>
+      ${delta !== null ? `<div class="r-hero-note">Normal daily water shift.</div>` : ""}`;
   }
   function drawMetabolism(current) {
     const wrap = el("ex-metab");
     if (!wrap) return;
     const plan = (current != null) ? computePlan(profile, current) : null;
     if (!plan) {
-      wrap.innerHTML = `<div class="ex-metab-empty">Add your height, age, sex and activity in the <b>Goal</b> tab to see your estimated metabolism.</div>`;
+      wrap.innerHTML = `<p class="r-status">Add your height, age, sex and activity in the <b>Goal</b> tab to see your estimated metabolism.</p>`;
       return;
     }
     wrap.innerHTML = `
-      <div class="ex-metab-card">
-        <div class="ex-metab-row"><span class="ex-metab-k">BMR (at rest)</span><span class="ex-metab-v">${kcal(plan.bmr)}/day</span></div>
-        <div class="ex-metab-row"><span class="ex-metab-k">Metabolism (TDEE, with activity)</span><span class="ex-metab-v">${kcal(plan.tdee)}/day</span></div>
-        <p class="ex-metab-note">An estimate from your stats (Mifflin-St Jeor). Your weight trend is the real check: holding steady means you're eating near this, drifting means above or below. Awareness, not a number to obsess over.</p>
-      </div>`;
+      <div class="r-well" style="grid-template-columns:repeat(2,1fr)">
+        <div class="r-well-cell">
+          <span class="r-micro">BMR at rest</span>
+          <div class="r-well-val">${kcal(plan.bmr)}</div>
+        </div>
+        <div class="r-well-cell">
+          <span class="r-micro">Metabolism (TDEE)</span>
+          <div class="r-well-val">${kcal(plan.tdee)}</div>
+        </div>
+      </div>
+      <div class="r-hero-note">An estimate from your stats (Mifflin-St Jeor). Your weight trend is the real check: holding steady means you're eating near this, drifting means above or below. Awareness, not a number to obsess over.</div>`;
   }
 
   async function addWeight() {
@@ -206,26 +208,43 @@
       </svg>`;
   }
 
+  const ICON_SCALE = `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18.5l5.5-6.5 4 3 6.5-8.5"></path><path d="M4 20.5h16"></path></svg>`;
+  const DEL_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5h14"></path><path d="M9 7.5V5.4h6V7.5"></path><path d="M6.6 7.5 7.4 19h9.2l.8-11.5"></path></svg>`;
+
   function drawList() {
     const list = el("ex-list");
     if (!logs.length) {
-      list.innerHTML = `<div class="empty"><h2>No weigh-ins yet</h2><p>Log your weight above. A trend line builds up as you go, and the Goal tab turns it into a calorie target.</p></div>`;
+      list.innerHTML = `
+        <div class="r-empty2">
+          <div class="r-empty2-icon">${ICON_SCALE}</div>
+          <div class="r-empty2-title">No weigh-ins yet</div>
+          <div class="r-empty2-body">Log your weight above. A trend line builds up as you go, and the Goal tab turns it into a calorie target.</div>
+          <div class="r-empty2-actions"><button class="btn-primary r-btn" id="ex-empty-cta">Log your first weigh-in</button></div>
+        </div>`;
+      const cta = el("ex-empty-cta");
+      if (cta) cta.addEventListener("click", () => { const w = el("ex-weight"); if (w) w.focus(); });
       return;
     }
     const recent = [...logs].reverse().slice(0, 14);
-    list.innerHTML = recent.map((l) => {
+    const rows = recent.map((l) => {
       const d = new Date(l.logged_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-      return `<div class="ex-log-row" data-id="${esc(l.id)}">
-        <span class="ex-log-w">${kg(l.weight_kg)}</span>
-        <span class="ex-log-d">${esc(d)}</span>
-        ${l.period ? `<span class="ex-log-period">${esc(l.period)}</span>` : ""}
-        ${l.note ? `<span class="ex-log-note">${esc(l.note)}</span>` : ""}
-        <button class="r-mini r-del ex-del">Remove</button>
-      </div>`;
+      return `
+        <div class="r-row" data-id="${esc(l.id)}">
+          <div class="r-row-main">
+            <div class="r-micro">${l.period ? esc(l.period) : "—"}</div>
+            <div class="r-row-content">${l.note ? esc(l.note) : "—"}</div>
+          </div>
+          <div class="r-row-side">
+            <div class="r-row-amt">${kg(l.weight_kg)}</div>
+            <div class="r-row-date">${esc(d)}</div>
+          </div>
+          <button class="r-row-del ex-del" title="Remove" aria-label="Remove this weigh-in">${DEL_ICON_SVG}</button>
+        </div>`;
     }).join("");
+    list.innerHTML = `<div class="r-row-list">${rows}</div>`;
     list.querySelectorAll(".ex-del").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        const row = btn.closest(".ex-log-row");
+        const row = btn.closest(".r-row");
         if (!row || !window.confirm("Remove this weigh-in?")) return;
         const { error } = await SB.from("weight_logs").delete().eq("id", row.dataset.id);
         if (error) { console.error(error); return; }

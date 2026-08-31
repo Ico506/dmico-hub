@@ -16,116 +16,112 @@ window.renderControl = async function (container, sb) {
   const DEFAULTS = [
     { id: "wake", title: "☀️ Wake up", start: "07:00", end: "07:15", days: [0, 1, 2, 3, 4, 5, 6] },
   ];
+  const DEL_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5h14"></path><path d="M9 7.5V5.4h6V7.5"></path><path d="M6.6 7.5 7.4 19h9.2l.8-11.5"></path></svg>`;
 
   container.innerHTML = `
     <style>
-      #ctl{display:flex;flex-direction:column;gap:26px;max-width:880px;}
+      #ctl{display:flex;flex-direction:column;gap:28px;max-width:880px;}
       #ctl section{display:flex;flex-direction:column;gap:10px;}
-      #ctl h3{margin:0;font-size:0.98rem;font-weight:700;}
-      #ctl .ctl-sub{font-size:0.78rem;opacity:0.6;margin:-4px 0 4px;}
-      #ctl .ctl-row{display:flex;flex-direction:column;gap:7px;padding:10px;border-radius:10px;background:rgba(127,127,127,0.06);}
+      #ctl .ctl-sub{font-size:0.78rem;color:var(--ink-soft);margin:-4px 0 4px;}
+      #ctl .ctl-row{display:flex;flex-direction:column;gap:7px;padding:10px 12px;border-radius:var(--radius);background:var(--surface-2);border:1px solid var(--line);}
       #ctl .ctl-arow1{display:flex;align-items:center;gap:8px;}
       #ctl .ctl-arow1 .a-title{flex:1;min-width:120px;}
       #ctl .ctl-arow1 .a-rm{margin-left:auto;}
       #ctl .ctl-arow2{display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
-      #ctl .a-dash{opacity:0.45;}
-      #ctl input,#ctl select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
+      #ctl .a-dash{color:var(--ink-faint);}
+      #ctl input,#ctl select{font:inherit;padding:7px 9px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink);}
+      #ctl input:focus-visible,#ctl select:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash);}
       #ctl .a-days{display:flex;flex-wrap:wrap;gap:6px;font-size:0.72rem;}
-      #ctl .a-days label{display:inline-flex;align-items:center;gap:3px;opacity:0.85;}
-      #ctl button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:none;background:#5b8def;color:#fff;cursor:pointer;}
-      #ctl button.ghost{background:transparent;border:1px solid rgba(127,127,127,0.35);color:inherit;}
-      #ctl button.a-rm{background:transparent;color:inherit;opacity:0.5;padding:4px 8px;}
+      #ctl .a-days label{display:inline-flex;align-items:center;gap:3px;color:var(--ink-soft);}
       #ctl button:disabled{opacity:0.5;cursor:default;}
       #ctl .ctl-actions{display:flex;flex-wrap:wrap;gap:8px;}
       #ctl .ctl-triggers{display:flex;flex-wrap:wrap;gap:10px;}
-      #ctl .ctl-triggers button{background:#3aa675;}
       #ctl .ctl-times{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;}
-      #ctl .ctl-times label{display:flex;flex-direction:column;gap:4px;font-size:0.78rem;opacity:0.85;}
-      #ctl .ctl-msg{font-size:0.78rem;opacity:0.85;margin:2px 0 0;}
-      #ctl .ctl-streaks{display:flex;flex-wrap:wrap;gap:10px;font-size:0.8rem;}
-      #ctl .ctl-streak{padding:6px 10px;border-radius:8px;background:rgba(58,166,117,0.12);}
-      #ctl .ctl-note{font-size:0.74rem;opacity:0.55;}
-      #ctl .ctl-checkin{display:flex;flex-wrap:wrap;gap:8px;}
-      #ctl .ci{background:rgba(127,127,127,0.12);color:inherit;border:1px solid rgba(127,127,127,0.25);font-weight:600;}
-      #ctl .ci.on{background:rgba(58,166,117,0.25);border-color:transparent;}
-      #ctl .ctl-flabel{display:flex;flex-direction:column;gap:4px;font-size:0.8rem;opacity:0.9;}
-      #ctl .ctl-flabel textarea{font:inherit;padding:7px 9px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;resize:vertical;}
-      #ctl .cd-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:rgba(127,127,127,0.06);margin-bottom:6px;}
-      #ctl .cd-row .cd-when{margin-left:auto;font-size:0.76rem;opacity:0.7;}
-      #ctl .cd-row .cd-del{background:transparent;color:inherit;opacity:0.5;padding:3px 8px;}
+      #ctl .ctl-times label{display:flex;flex-direction:column;gap:4px;font-size:0.78rem;color:var(--ink-soft);}
+      #ctl .ctl-msg{font-size:0.78rem;color:var(--ink-soft);margin:2px 0 0;}
+      #ctl .ctl-note{font-size:0.74rem;color:var(--ink-faint);}
+      #ctl .ctl-flabel{display:flex;flex-direction:column;gap:4px;font-size:0.8rem;color:var(--ink-soft);}
+      #ctl .ctl-flabel textarea{font:inherit;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink);resize:vertical;}
+      #ctl .ctl-flabel textarea:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash);}
     </style>
     <div id="ctl">
+      <div class="r-well">
+        <div class="r-well-cell"><span class="r-micro">Checked in</span><div class="r-well-val" id="ctl-state-checkin">—</div></div>
+        <div class="r-well-cell"><span class="r-micro">Best streak</span><div class="r-well-val" id="ctl-state-streak">—</div></div>
+        <div class="r-well-cell"><span class="r-micro">Next countdown</span><div class="r-well-val" id="ctl-state-countdown">—</div></div>
+      </div>
+
       <section>
-        <h3>🧭 Routine anchors</h3>
+        <span class="r-eyebrow">Routine anchors</span>
         <p class="ctl-sub">The backbone of your day. Edit times and days, then Save to re-sync the recurring calendar events.</p>
         <div id="ctl-anchors"></div>
         <div class="ctl-actions">
-          <button class="ghost" id="ctl-add">+ Add anchor</button>
-          <button id="ctl-save">Save anchors</button>
+          <button class="r-mini" id="ctl-add">+ Add anchor</button>
+          <button class="btn-primary r-btn" id="ctl-save">Save anchors</button>
         </div>
         <p class="ctl-msg" id="ctl-amsg" hidden></p>
       </section>
 
       <section>
-        <h3>🗓️ Planning</h3>
+        <span class="r-eyebrow">Planning</span>
         <p class="ctl-sub">Run these now; the bot applies to your calendar and posts a note in Discord.</p>
         <div class="ctl-triggers">
-          <button data-run="run_plan">Plan next week</button>
-          <button data-run="run_crunch">Crunch study blocks</button>
-          <button data-run="run_funweek">Plan entertainment</button>
+          <button class="r-mini" data-run="run_plan">Plan next week</button>
+          <button class="r-mini" data-run="run_crunch">Crunch study blocks</button>
+          <button class="r-mini" data-run="run_funweek">Plan entertainment</button>
         </div>
         <p class="ctl-msg" id="ctl-rmsg" hidden></p>
       </section>
 
       <section>
-        <h3>🌀 Ripple my day</h3>
+        <span class="r-eyebrow">Ripple my day</span>
         <p class="ctl-sub">A sudden plan came up? Drop it in and push the rest of today back.</p>
         <div id="ctl-ripple"></div>
       </section>
 
       <section>
-        <h3>⏰ Bot times</h3>
+        <span class="r-eyebrow">Bot times</span>
         <p class="ctl-sub">When the bot runs its daily check-in, drift scan, and calendar snapshot. Applies from the next cycle.</p>
         <div class="ctl-times">
           <label>Check-in<input id="ctl-checkin" type="time" /></label>
           <label>Drift scan<input id="ctl-drift" type="time" /></label>
           <label>Snapshot<input id="ctl-snap" type="time" /></label>
-          <button id="ctl-tsave">Save times</button>
+          <button class="btn-primary r-btn" id="ctl-tsave">Save times</button>
         </div>
         <p class="ctl-msg" id="ctl-tmsg" hidden></p>
       </section>
 
       <section>
-        <h3>✅ Today's check-in</h3>
+        <span class="r-eyebrow">Today's check-in</span>
         <p class="ctl-sub">Tick what you did today to build your streaks. (You can also tap the bot's 20:00 Discord check-in.)</p>
-        <div class="ctl-checkin" id="ctl-checkin-today"><span class="ctl-note">Loading…</span></div>
+        <div class="r-chips" id="ctl-checkin-today"><span class="ctl-note">Loading…</span></div>
       </section>
 
       <section>
-        <h3>🔥 Routine streaks</h3>
-        <div class="ctl-streaks" id="ctl-streaks"><span class="ctl-note">Loading…</span></div>
+        <span class="r-eyebrow">Routine streaks</span>
+        <div class="r-chips" id="ctl-streaks"><span class="ctl-note">Loading…</span></div>
       </section>
 
       <section>
-        <h3>⏳ Countdowns</h3>
+        <span class="r-eyebrow">Countdowns</span>
         <p class="ctl-sub">Deadlines and events the bot counts down to.</p>
         <div id="ctl-countdowns"><span class="ctl-note">Loading…</span></div>
         <div class="ctl-actions">
           <input type="text" id="cd-event" placeholder="Event" style="flex:1;min-width:140px" />
           <input type="date" id="cd-date" />
           <input type="time" id="cd-time" title="optional" />
-          <button id="cd-add">Add</button>
+          <button class="btn-primary r-btn" id="cd-add">Add</button>
         </div>
         <p class="ctl-msg" id="cd-msg" hidden></p>
       </section>
 
       <section>
-        <h3>🪪 Profile</h3>
+        <span class="r-eyebrow">Profile</span>
         <p class="ctl-sub">Who you are and what you're working toward. The weekly plan reads this.</p>
         <label class="ctl-flabel">Identity<textarea id="pf-identity" rows="2"></textarea></label>
         <label class="ctl-flabel">Focus areas<textarea id="pf-focus" rows="2"></textarea></label>
         <label class="ctl-flabel">Values<textarea id="pf-values" rows="2"></textarea></label>
-        <div class="ctl-actions"><button id="pf-save">Save profile</button></div>
+        <div class="ctl-actions"><button class="btn-primary r-btn" id="pf-save">Save profile</button></div>
         <p class="ctl-msg" id="pf-msg" hidden></p>
       </section>
     </div>`;
@@ -163,7 +159,7 @@ window.renderControl = async function (container, sb) {
           <input class="a-start" type="time" value="${esc(a.start || "")}" />
           <span class="a-dash">–</span>
           <input class="a-end" type="time" value="${esc(a.end || "")}" />
-          <button class="a-rm" title="Remove">✕</button>
+          <button class="r-mini r-del a-rm" title="Remove">✕</button>
         </div>
         <div class="ctl-arow2">
           <span class="a-days">${DAYS.map(([lbl, d]) =>
@@ -240,10 +236,10 @@ window.renderControl = async function (container, sb) {
     const done = hist[ciToday] || {};
     ciEl.innerHTML = todayItems.length
       ? todayItems.map(([id, label]) =>
-          `<button class="ci ${done[id] === true ? "on" : ""}" data-id="${esc(id)}">${done[id] === true ? "✓ " : ""}${esc(label)}</button>`
+          `<button class="r-chip${done[id] === true ? " on" : ""}" data-id="${esc(id)}">${done[id] === true ? "✓ " : ""}${esc(label)}</button>`
         ).join("")
       : `<span class="ctl-note">No anchors scheduled today.</span>`;
-    ciEl.querySelectorAll(".ci").forEach((btn) =>
+    ciEl.querySelectorAll(".r-chip").forEach((btn) =>
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
         const now = !(hist[ciToday] && hist[ciToday][id] === true);
@@ -262,7 +258,7 @@ window.renderControl = async function (container, sb) {
   const active = Object.entries(streaks).filter(([, v]) => (v.current || 0) > 0);
   sEl.innerHTML = active.length
     ? active.sort((a, b) => (b[1].current || 0) - (a[1].current || 0))
-        .map(([id, v]) => `<span class="ctl-streak">🔥 ${esc(titleById[id] || id)}: ${v.current}d</span>`).join("")
+        .map(([id, v]) => `<span class="r-chip">🔥 ${esc(titleById[id] || id)}: ${v.current}d</span>`).join("")
     : `<span class="ctl-note">No active streaks yet — they start the first day you tap a check-in.</span>`;
 
   // ── Countdowns ──────────────────────────────────────────────
@@ -274,11 +270,21 @@ window.renderControl = async function (container, sb) {
   };
   function renderCountdowns(list) {
     const items = (list || []).slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    cdEl.innerHTML = items.length ? items.map((c, i) => {
+    cdEl.innerHTML = items.length ? `<div class="r-row-list">${items.map((c, i) => {
       const dd = daysTo(c.date);
       const when = dd < 0 ? `${-dd}d ago` : dd === 0 ? "today" : dd === 1 ? "tomorrow" : `${dd}d`;
-      return `<div class="cd-row"><span>${esc(c.event)}</span><span class="cd-when">${esc(c.date)}${c.time ? " " + esc(c.time) : ""} · ${when}</span><button class="cd-del" data-i="${i}" title="Delete">✕</button></div>`;
-    }).join("") : `<span class="ctl-note">No countdowns yet.</span>`;
+      return `
+        <div class="r-row">
+          <div class="r-row-main">
+            <div class="r-micro">${esc(when)}</div>
+            <div class="r-row-content">${esc(c.event)}</div>
+          </div>
+          <div class="r-row-side">
+            <div class="r-row-date">${esc(c.date)}${c.time ? " " + esc(c.time) : ""}</div>
+          </div>
+          <button class="r-row-del cd-del" data-i="${i}" title="Delete" aria-label="Delete this countdown">${DEL_ICON_SVG}</button>
+        </div>`;
+    }).join("")}</div>` : `<span class="ctl-note">No countdowns yet.</span>`;
     cdEl.querySelectorAll(".cd-del").forEach((btn) =>
       btn.addEventListener("click", async () => {
         const target = items[+btn.dataset.i];
@@ -291,6 +297,26 @@ window.renderControl = async function (container, sb) {
     );
   }
   renderCountdowns(cdRes?.data?.[0]?.value?.countdowns || []);
+
+  // ── State well: today's check-ins, best active streak, next countdown ──
+  const stateCheckinEl = document.getElementById("ctl-state-checkin");
+  if (stateCheckinEl) {
+    const doneToday = todayItems.filter(([id]) => (hist[ciToday] || {})[id] === true).length;
+    stateCheckinEl.textContent = todayItems.length ? `${doneToday}/${todayItems.length}` : "—";
+  }
+  const stateStreakEl = document.getElementById("ctl-state-streak");
+  if (stateStreakEl) {
+    const top = active.length ? active.slice().sort((a, b) => (b[1].current || 0) - (a[1].current || 0))[0] : null;
+    stateStreakEl.textContent = top ? `${top[1].current}d` : "—";
+  }
+  const stateCountdownEl = document.getElementById("ctl-state-countdown");
+  if (stateCountdownEl) {
+    const upcoming = (cdRes?.data?.[0]?.value?.countdowns || [])
+      .filter((c) => daysTo(c.date) >= 0)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    stateCountdownEl.textContent = upcoming.length ? `${upcoming[0].event} · ${daysTo(upcoming[0].date)}d` : "—";
+  }
+
   document.getElementById("cd-add").addEventListener("click", async () => {
     const event = document.getElementById("cd-event").value.trim();
     const date = document.getElementById("cd-date").value;

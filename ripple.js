@@ -52,14 +52,13 @@ window.dmicoRippleWidget = async function (host, sb) {
     <style>
       .rip{display:flex;flex-direction:column;gap:10px;max-width:560px;}
       .rip .rip-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-      .rip input,.rip select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid rgba(127,127,127,0.3);background:transparent;color:inherit;}
+      .rip input,.rip select{font:inherit;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface-2);color:var(--ink);}
+      .rip input:focus-visible,.rip select:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash);}
       .rip input.rip-title{flex:1;min-width:140px;}
-      .rip button{font:inherit;font-weight:600;padding:7px 14px;border-radius:8px;border:none;background:#d98a2b;color:#fff;cursor:pointer;}
-      .rip button.ghost{background:transparent;border:1px solid rgba(127,127,127,0.35);color:inherit;}
-      .rip .rip-prev{font-size:0.82rem;padding:10px 12px;border-radius:10px;background:rgba(217,138,43,0.10);}
-      .rip .rip-prev .h{font-weight:600;margin:6px 0 3px;}
-      .rip .rip-msg{font-size:0.78rem;opacity:0.85;}
-      .rip .note{font-size:0.74rem;opacity:0.55;}
+      .rip .rip-prev{font-size:0.82rem;padding:12px 14px;border-radius:var(--radius);background:var(--surface-2);border:1px solid var(--line);color:var(--ink);}
+      .rip .rip-prev .h{font-weight:700;color:var(--ink-soft);margin:6px 0 3px;}
+      .rip .rip-msg{font-size:0.78rem;color:var(--ink-soft);}
+      .rip .note{font-size:0.74rem;color:var(--ink-faint);}
     </style>
     <div class="rip">
       <div class="rip-row">
@@ -70,10 +69,10 @@ window.dmicoRippleWidget = async function (host, sb) {
           <option value="returns">Overflow → returns pool</option>
           <option value="tomorrow">Overflow → tomorrow</option>
         </select>
-        <button class="rip-preview">Preview</button>
+        <button class="rip-preview btn-primary r-btn">Preview</button>
       </div>
       <div class="rip-prev" hidden></div>
-      <div class="rip-row" hidden data-apply-row><button class="rip-apply">Apply ripple</button><button class="ghost rip-cancel">Cancel</button></div>
+      <div class="rip-row" hidden data-apply-row><button class="rip-apply btn-primary r-btn">Apply ripple</button><button class="r-mini rip-cancel">Cancel</button></div>
       <p class="rip-msg" hidden></p>
     </div>`;
 

@@ -3325,21 +3325,7 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
 .ex-trend-down { color: var(--accent-deep); }
 .ex-trend-up { color: var(--lantern); }
 #ex-chart { margin-bottom: 18px; }
-
-.ex-log-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  margin-bottom: 8px;
-}
-.ex-log-w { font-weight: 600; color: var(--ink); min-width: 80px; }
-.ex-log-d { font-size: 0.82rem; color: var(--ink-soft); }
-.ex-log-note { font-size: 0.82rem; color: var(--ink-faint); flex: 1; }
-.ex-log-row .r-del { margin-left: auto; }
+#ex-today, #ex-metab { margin-bottom: 12px; }
 
 .ex-plan-note, .ex-plan-card {
   background: var(--surface-2);
@@ -4102,6 +4088,35 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   font-size: 15px;
 }
 .sv-add #sv-name { flex: 1; min-width: 160px; }
+
+/* Subscriptions tab: mirrors the (committed) rows on Overview, plus an inline add form. */
+.subs-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.subs-add input, .subs-add select {
+  font-family: var(--body);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 15px;
+}
+.subs-add #sub-name { flex: 1; min-width: 130px; }
+.fin-committed-row .r-row-del { margin-left: auto; }
+
+/* Review tab: schedule form + a card holding the latest review text. */
+.fin-review .rev-rec { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--ink); margin: 12px 0 10px; }
+.fin-review .rev-when { display: flex; flex-wrap: wrap; gap: 8px; }
+.fin-review .rev-when select, .fin-review .rev-when input {
+  font-family: var(--body);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 15px;
+}
+.fin-review .rev-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.fin-review .rev-last { font-size: 14px; color: var(--ink); line-height: 1.55; }
 
 @media (max-width: 720px) {
   .r-well { grid-template-columns: repeat(3, 1fr); }
