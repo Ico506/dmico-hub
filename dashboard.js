@@ -275,9 +275,12 @@ window.renderDashboard = async function (container, sb) {
   const weekCal = weekCalRes?.data?.[0]?.value ?? null;
   const weekEl = document.getElementById("dash-week");
   if (weekEl && weekCal && Array.isArray(weekCal.events)) {
+    // Must stay identical to TYPE_COLOR in week.js. The same event categories were
+    // being coloured two different ways (blue/green/purple here, brand tokens there),
+    // so Home and Week disagreed about what an "anchor" looks like. One legend.
     const TYPE_COLOR = {
-      anchor: "#5b8def", focus: "#3aa675", crunch: "#d98a2b",
-      entertainment: "#9b6dd6", event: "#8a8f98",
+      anchor: "var(--ink-faint)", focus: "var(--accent)", crunch: "var(--amber)",
+      entertainment: "var(--lantern)", event: "var(--ink)",
     };
     const TYPE_LABEL = {
       anchor: "Anchor", focus: "Focus", crunch: "Study",
