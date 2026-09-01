@@ -468,7 +468,16 @@ input, button { font-family: inherit; }
 
 /* ── Stage ─────────────────────────────────────────────────── */
 
-.stage { padding: 40px 48px; max-width: 920px; }
+/* 920px was set when every module was a single narrow column. The redesign gave
+   Finance (and Week) real two-column layouts plus a sidebar, so the old cap left a
+   large dead margin on the right of a wide screen.
+
+   Two changes: a wider cap, and `margin: 0 auto` so the leftover space splits evenly
+   instead of piling up on one side. Asymmetric emptiness reads as a broken layout;
+   symmetric emptiness reads as deliberate restraint, which is the whole Muji idea.
+   Prose line length is still protected at component level (.r-empty2-body 42ch,
+   .empty p 52ch), so widening the stage does not hurt readability. */
+.stage { padding: 40px 48px; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 
 .stage-top { margin-bottom: 28px; }
 
@@ -1065,9 +1074,9 @@ input, button { font-family: inherit; }
 
 /* ── Dashboard photo board (draggable pinned pictures) ─────── */
 
-/* Widen the stage only for the dashboard so there's room to pin photos
-   in the space beside the signal cards. Other modules keep the 920px cap. */
-.stage:has(.dash-board) { max-width: 1200px; }
+/* The dashboard used to be the only module wide enough to need 1200px. Every module
+   now gets that by default (see .stage above), so this override is redundant and the
+   rule is kept only as the anchor for the pinned-photo positioning context below. */
 
 /* The board is the positioning context. Cards flow at the top; pinned photos
    are absolutely placed over it. min-height gives a canvas to pin into. */
