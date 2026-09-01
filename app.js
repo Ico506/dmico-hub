@@ -32,6 +32,8 @@ const MODULES = [
     blurb: "The cockpit: routine anchors, planning triggers, and bot settings." },
   { id: "life",       label: "Life",       lit: true,
     blurb: "Mood, prompt-driven journal, and reflections." },
+  { id: "path",       label: "Path",       lit: true,
+    blurb: "One subject, drawn as a route, with a marker for where you are." },
   { id: "curators",   label: "Curators",   lit: true,
     blurb: "Proactive, taste-tuned digests. The Content Scout finds what fits you." },
   { id: "finance",    label: "Finance",    lit: true,
@@ -520,6 +522,8 @@ function openModule(id) {
     window.renderLife(body, sb);
   } else if (id === "research" && window.renderResearch) {
     window.renderResearch(body, sb);
+  } else if (id === "path" && window.renderPath) {
+    window.renderPath(body, sb);
   } else if (id === "curators" && window.renderCurators) {
     window.renderCurators(body, sb);
   } else if (id === "selfstudy" && window.renderSelfStudy) {
