@@ -251,10 +251,20 @@
 
     if (hasSnap) list.appendChild(snapshotCard(digest));
 
+    // The synthesis leads. This is the half that gets read when nothing gets opened,
+    // so it sits above the picks rather than after them.
+    if (digest && digest.summary) {
+      const sum = document.createElement("div");
+      sum.className = "r-card";
+      sum.innerHTML = `<div class="r-eyebrow">(the short version)</div>` +
+        `<p class="r-abstract">${esc(digest.summary)}</p>`;
+      list.appendChild(sum);
+    }
+
     if (hasItems) {
       const head = document.createElement("p");
       head.className = "r-status";
-      head.textContent = `${digest.items.length} news pick(s) · ${digest.ts || digest.date || ""}`;
+      head.textContent = `${digest.items.length} pick(s) if you want to go deeper · ${digest.ts || digest.date || ""}`;
       list.appendChild(head);
       digest.items.forEach((it) => list.appendChild(digestCard(it)));
     } else if (hasSnap) {

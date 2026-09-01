@@ -1,21 +1,19 @@
 /* ─────────────────────────────────────────────────────────────
-   dmico life os — in-hub "what's new" banner + tab unread count
-   Zero-permission ambient signals for when a hub tab is already open.
-   The evening push (push.js + the bot) covers the closed-tab case.
+   dmico life os — the "what needs you" banner
+   A thin strip carried on every module EXCEPT Home, so that wherever you
+   are in the hub you can still see if something wants you.
 
-   "Unseen" = curator digests dated today that you haven't dismissed.
-   Dismissing records the signature in kv 'hub_last_seen' so it stays
-   quiet until something genuinely new lands.
+   It no longer computes anything itself. It reads window.dmicoComputeState
+   (now.js), the same single computation behind Home's state block and the
+   lantern rail, so the three surfaces cannot disagree. Before this, the
+   banner ran its own private version of "what needs you" and could tell you
+   something different from the screen directly beneath it.
+
+   On Home the banner stays hidden, because the state block does the same job
+   properly and two of them is just noise.
    ───────────────────────────────────────────────────────────── */
 
 (function () {
-  const DOMAINS = [
-    { id: "content", label: "Content" },
-    { id: "research", label: "Research" },
-    { id: "markets", label: "Markets" },
-  ];
-
-  const today = () => new Date().toISOString().slice(0, 10);
   const esc = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -25,104 +23,91 @@
     s.id = "nudge-styles";
     s.textContent = `
       .nudge-banner{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;
-        margin:0 0 .9rem;padding:.6rem .9rem;border-radius:.6rem;
-        background:rgba(226,178,94,.16);border:1px solid rgba(226,178,94,.5);
-        font-size:.95rem;}
-      .nudge-banner strong{font-weight:700;}
-      .nudge-links{display:flex;gap:.5rem;flex-wrap:wrap;}
-      .nudge-link{cursor:pointer;text-decoration:underline;color:inherit;background:none;border:none;font:inherit;padding:0;}
+        margin:0 0 1rem;padding:.55rem .9rem;border-radius:var(--radius,14px);
+        background:var(--surface,#FEFAE0);border:1px solid var(--line,#E3D7BA);
+        font-size:.92rem;color:var(--ink,#45301E);}
+      .nudge-eyebrow{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+        color:var(--ink-faint,#A89A7C);font-weight:700;}
+      .nudge-links{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
+      .nudge-link{cursor:pointer;background:none;border:none;font:inherit;padding:0;
+        color:inherit;text-decoration:underline;text-underline-offset:3px;
+        text-decoration-color:var(--line,#E3D7BA);}
+      .nudge-link:hover{text-decoration-color:var(--ink-soft,#7C6A4F);}
+      .nudge-dot{display:inline-block;width:6px;height:6px;border-radius:999px;
+        margin-right:.4rem;vertical-align:middle;}
+      .nudge-dot.lit{background:var(--lantern,#C4661F);}
+      .nudge-dot.warm{background:var(--amber,#B08A2A);}
       .nudge-x{margin-left:auto;cursor:pointer;background:none;border:none;font:inherit;
-        color:inherit;opacity:.6;font-size:1.1rem;line-height:1;}
+        color:inherit;opacity:.5;font-size:1rem;line-height:1;padding:0 .2rem;}
       .nudge-x:hover{opacity:1;}
     `;
     document.head.appendChild(s);
   }
 
-  async function unseen() {
-    const digest = (await window.dmicoKvGet("curator_digest")) || {};
-    const seenBlob = (await window.dmicoKvGet("hub_last_seen")) || {};
-    const seen = (seenBlob && seenBlob.seen) || {};
-    const t = today();
-    const items = [];
-    DOMAINS.forEach((d) => {
-      const dg = digest[d.id];
-      if (dg && dg.date === t) {
-        const sig = `${d.id}:${t}`;
-        if (!seen[sig]) items.push({ label: `${d.label} digest`, sig, mod: "curators" });
-      }
-    });
-    // Real at-stake: subscriptions renewing within 2 days (honest, factual).
-    const subs = (await window.dmicoKvGet("finance_subscriptions")) || {};
-    const subItems = Array.isArray(subs.items) ? subs.items : [];
-    const now = new Date(); now.setHours(0, 0, 0, 0);
-    const horizon = new Date(now.getTime() + 2 * 864e5);
-    subItems.forEach((it) => {
-      if (!it.next) return;
-      const due = new Date(it.next + "T00:00:00");
-      if (isNaN(due.getTime()) || due < now || due > horizon) return;
-      const sig = `sub:${it.id || it.name}:${it.next}`;
-      if (!seen[sig]) items.push({ label: `${it.name || "Subscription"} renews ${it.next}`, sig, mod: "finance" });
-    });
-    return items;
-  }
+  const currentModule = () =>
+    (document.querySelector(".lantern.current") || {}).dataset?.id || null;
 
-  async function markSeen(sigs) {
-    const blob = (await window.dmicoKvGet("hub_last_seen")) || {};
-    const seen = (blob && blob.seen) || {};
-    sigs.forEach((s) => (seen[s] = true));
-    // keep the map from growing forever: drop entries older than ~14 days
-    const cutoff = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
-    Object.keys(seen).forEach((k) => {
-      const d = (k.split(":")[1] || "");
-      if (d && d < cutoff) delete seen[k];
-    });
-    await window.dmicoKvSet("hub_last_seen", { seen });
-  }
+  // Dismissal is per-session and cosmetic. These items are live state, not
+  // notifications, so "dismiss" means "stop showing me the strip for now", never
+  // "pretend this is resolved". Being over budget does not go away because you
+  // closed a bar.
+  const dismissed = () => sessionStorage.getItem("dmico-nudge-dismissed") === "1";
 
-  function setTabCount(n) {
-    document.title = n > 0 ? `(${n}) DMICO` : "DMICO";
-  }
-
-  // Called by the shell on login and after a domain opens.
-  window.dmicoRenderNudge = async function () {
+  window.dmicoRenderNudge = async function (sb) {
     injectStyles();
     const app = document.getElementById("app-view");
     if (!app) return;
-    const items = await unseen();
-    setTabCount(items.length);
 
     const existing = document.getElementById("nudge-banner");
     if (existing) existing.remove();
+
+    // Home already shows all of this, properly, in the state block.
+    if (currentModule() === "dashboard") { setTabCount(0, true); return; }
+    if (dismissed()) return;
+    if (!window.dmicoComputeState) return;
+
+    let st;
+    try { st = await window.dmicoComputeState(sb); }
+    catch (e) { console.error("nudge: state read failed", e); return; }
+
+    const items = (st.items || []);
+    setTabCount(items.length);
     if (!items.length) return;
 
     const bar = document.createElement("div");
     bar.id = "nudge-banner";
     bar.className = "nudge-banner";
-    const links = items
-      .map((it) => `<button class="nudge-link" data-sig="${esc(it.sig)}" data-mod="${esc(it.mod || "curators")}">${esc(it.label)}</button>`)
-      .join(" · ");
-    bar.innerHTML =
-      `<span>🔔 <strong>What needs you:</strong></span>` +
-      `<span class="nudge-links">${links}</span>` +
-      `<button class="nudge-x" title="Dismiss" aria-label="Dismiss">✕</button>`;
+    const links = items.slice(0, 4).map((it, i) =>
+      `<button class="nudge-link" data-mod="${esc(it.module || "dashboard")}" data-i="${i}">` +
+      `<span class="nudge-dot ${it.tone === "lit" ? "lit" : "warm"}"></span>${esc(it.text)}</button>`
+    ).join(" · ");
+    const more = items.length > 4 ? ` <span class="nudge-eyebrow">+${items.length - 4} more</span>` : "";
 
-    // insert at the very top of the stage
-    const stage = document.querySelector(".stage") || app;
+    bar.innerHTML =
+      `<span class="nudge-eyebrow">What needs you</span>` +
+      `<span class="nudge-links">${links}${more}</span>` +
+      `<button class="nudge-x" title="Hide for now" aria-label="Hide for now">✕</button>`;
+
     const body = document.getElementById("stage-body");
     if (body && body.parentElement) body.parentElement.insertBefore(bar, body);
-    else stage.insertBefore(bar, stage.firstChild);
+    else app.insertBefore(bar, app.firstChild);
 
     bar.querySelectorAll(".nudge-link").forEach((b) =>
-      b.addEventListener("click", async () => {
-        if (window.__openModule) window.__openModule(b.dataset.mod || "curators");
-        await markSeen([b.dataset.sig]);
-        window.dmicoRenderNudge();
+      b.addEventListener("click", () => {
+        const mod = b.dataset.mod;
+        if (mod && mod !== "dashboard" && window.__openModule) window.__openModule(mod);
       })
     );
-    bar.querySelector(".nudge-x").addEventListener("click", async () => {
-      await markSeen(items.map((it) => it.sig));
+    bar.querySelector(".nudge-x").addEventListener("click", () => {
+      sessionStorage.setItem("dmico-nudge-dismissed", "1");
       bar.remove();
-      setTabCount(0);
     });
   };
+
+  // The browser-tab unread count. Kept here because it is the same signal, but it
+  // reflects the shared state rather than a private count. Home clears it, since
+  // being on Home means you are already looking at the list.
+  function setTabCount(n, clear) {
+    document.title = (!clear && n > 0) ? `(${n}) DMICO` : "DMICO";
+  }
 })();

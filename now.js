@@ -243,6 +243,8 @@
       const host = document.getElementById("dash-now");
       if (host && window.renderNowBlock) await window.renderNowBlock(host, _lastSb);
       if (window.dmicoRefreshRail) await window.dmicoRefreshRail(_lastSb);
+      // The banner reads the same state, so it refreshes with everything else.
+      if (window.dmicoRenderNudge) await window.dmicoRenderNudge(_lastSb);
     } catch (e) {
       console.error("state refresh failed", e);
     } finally {

@@ -95,7 +95,7 @@ function showApp(session) {
     setTimeout(() => { try { window.dmicoHandleNfc(act); } catch (e) { console.error("nfc", e); } }, 380);
   }
   // Nudge (PWA): "what's new" banner + tab count, and the bell toggle in the rail.
-  try { window.dmicoRenderNudge && window.dmicoRenderNudge(); } catch (e) {}
+  try { window.dmicoRenderNudge && window.dmicoRenderNudge(sb); } catch (e) {}
   try { window.dmicoRefreshRail && window.dmicoRefreshRail(sb); } catch (e) {}
   try { window.dmicoInitNudgeUI && window.dmicoInitNudgeUI(); } catch (e) {}
 }
@@ -498,6 +498,11 @@ function openModule(id) {
   document.querySelectorAll(".lantern").forEach((n) =>
     n.classList.toggle("current", n.dataset.id === id)
   );
+  // The banner hides on Home and shows everywhere else, so it has to be re-evaluated
+  // on every module change, not just at login.
+  setTimeout(() => {
+    try { window.dmicoRenderNudge && window.dmicoRenderNudge(sb); } catch (e) {}
+  }, 0);
   document.querySelectorAll(".bbar-item").forEach((n) =>
     n.classList.toggle("current", n.dataset.id === id ||
       (n.dataset.id === "more" && moreSheetModuleIds().includes(id)))
