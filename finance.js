@@ -9,6 +9,25 @@
    ───────────────────────────────────────────────────────────── */
 
 (function () {
+  /* RETIRED 2026-09-01: the recurring-expense template list.
+     It derived its templates from expense HISTORY (any past row flagged
+     is_recurring), never from the Subscriptions tab, so the two drifted apart with
+     nothing linking them. Removing Canva Pro from Subscriptions left its template
+     showing forever, and a YouTube Premium price change produced two competing
+     templates at RM12.90 and RM17.90.
+
+     It is retired rather than fixed because it had become redundant twice over: the
+     Subscriptions tab is the source of truth for what he pays, and the bot's
+     subscription auto-charger already logs these every month, so a manual "log this
+     month" button was a second path to an automatic job and could double-log.
+
+     Nothing is deleted. drawRecurring() and its helpers stay intact below, the
+     is_recurring / recur_label columns stay (the bot still writes them in
+     finance_review.py), and every historical expense is untouched, because he really
+     did pay for Canva and erasing it would falsify his spending history. Flip this to
+     true to bring the section back. */
+  const SHOW_RECURRING_TEMPLATES = false;
+
   let SB   = null;
   let root = null;
 
@@ -1282,13 +1301,14 @@
                 <span class="r-micro">Link to project <span class="r-label-optional">optional</span></span>
                 <select id="fe-project"><option value="">— no project —</option></select>
               </div>
+              ${SHOW_RECURRING_TEMPLATES ? `
               <div class="r-field fin-rec-toggle-row">
                 <label class="fin-rec-check-label">
                   <input type="checkbox" id="fe-recurring" />
                   Recurring expense
                 </label>
                 <input id="fe-rec-label" type="text" placeholder="Label (e.g. Spotify, Rent)" class="fin-rec-name" hidden />
-              </div>
+              </div>` : ""}
             </details>
 
             <div class="fin-exp-form-actions">
@@ -1297,7 +1317,7 @@
             </div>
             <p id="fe-status" class="r-status"></p>
           </div>
-          <div id="fin-recurring-section" class="fin-rec-section"></div>
+          ${SHOW_RECURRING_TEMPLATES ? `<div id="fin-recurring-section" class="fin-rec-section"></div>` : ""}
         </div>
 
         <div class="fin-exp-list-col">
@@ -1356,7 +1376,7 @@
       if (initial) selectCatChip(initial, false);
     });
 
-    el("fe-recurring").addEventListener("change", () => {
+    if (el("fe-recurring")) el("fe-recurring").addEventListener("change", () => {
       const recLabel = el("fe-rec-label");
       recLabel.hidden = !el("fe-recurring").checked;
       if (!recLabel.hidden) recLabel.focus();
@@ -1500,7 +1520,7 @@
   }
 
   async function refreshExpenses() {
-    drawRecurring();
+    if (SHOW_RECURRING_TEMPLATES) drawRecurring();
     const labelEl = el("fin-month-label");
     if (labelEl) labelEl.textContent = `${MONTH_NAMES[activeMonth]} ${activeYear}`;
     const now     = new Date();
