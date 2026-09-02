@@ -4132,3 +4132,10 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   .r-hero-num { font-size: 46px; }
 }
 
+
+/* Commitments: reported facts, never advice. `avail` is the number he can actually
+   steer; `warn` states plainly when the limit exceeds what is left after commitments. */
+.fin-committed-avail { font-size: 13px; color: var(--ink-soft); margin: 6px 0 0; }
+.fin-committed-warn {
+  font-size: 13px; color: var(--clay); margin: 6px 0 0; line-height: 1.5;
+}

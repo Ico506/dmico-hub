@@ -298,14 +298,24 @@
       const d = new Date(e.logged_at);
       return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
     });
-    const split = { need: 0, want: 0, unsorted: 0 };
+    // The third bucket, "fixed", is what makes this budget honest. Rent (RM1,370) and
+    // subscriptions leave the account whether or not he opens the hub, so measuring
+    // "am I overspending on Needs" against money he cannot steer answers a question he
+    // cannot act on. Commitments come off the top and are REPORTED; the limit and the
+    // needs/wants bars then describe only money he actually chooses how to spend.
+    const split = { need: 0, want: 0, unsorted: 0, fixed: 0 };
     thisMonthRows.forEach((e) => {
       const cat = (e.category || "").trim().toLowerCase();
       const b = buckets[cat];
-      if (b === "need") split.need += Number(e.amount);
+      if (b === "fixed") split.fixed += Number(e.amount);
+      else if (b === "need") split.need += Number(e.amount);
       else if (b === "want") split.want += Number(e.amount);
       else split.unsorted += Number(e.amount);
     });
+    // Steerable = everything this month that is not a fixed commitment. When nothing is
+    // tagged "fixed" this equals thisMonthExp, so behaviour is identical to before and
+    // the change is safe to deploy before he tags anything.
+    const steerExp = thisMonthExp - split.fixed;
     const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b));
 
@@ -319,10 +329,19 @@
     // remains in the calendar month, today excluded.
     const daysInMonth = new Date(thisYear, thisMonth + 1, 0).getDate();
     const daysLeft     = Math.max(0, daysInMonth - now.getDate());
-    const spentLeft    = budget ? budget - thisMonthExp : null;
-    const spentPct     = budget ? Math.min(999, Math.round((thisMonthExp / budget) * 100)) : 0;
-    const overBudget   = budget && thisMonthExp > budget;
+    // The hero measures STEERABLE spend against the steerable limit. Commitments are
+    // deliberately excluded so the headline is a number he can respond to.
+    const spentLeft    = budget ? budget - steerExp : null;
+    const spentPct     = budget ? Math.min(999, Math.round((steerExp / budget) * 100)) : 0;
+    const overBudget   = budget && steerExp > budget;
     const closeBudget  = budget && !overBudget && spentPct >= 80;
+
+    // Commitments as reported facts, never as advice.
+    const availableToSteer = income ? income - split.fixed : null;
+    const limitOverAvailable = (budget && availableToSteer != null && budget > availableToSteer)
+      ? { limit: budget, available: availableToSteer } : null;
+    const fixedShare = (income > 0 && split.fixed > 0)
+      ? Math.round((split.fixed / income) * 100) : null;
 
     // Render shell.
     panel.innerHTML = `
@@ -347,8 +366,8 @@
 
           <div class="r-well">
             <div class="r-well-cell">
-              <span class="r-micro">Spent</span>
-              <div class="r-well-val">${fmtRM(thisMonthExp).replace("RM ", "")}</div>
+              <span class="r-micro">${split.fixed > 0 ? "Steered" : "Spent"}</span>
+              <div class="r-well-val">${fmtRM(steerExp).replace("RM ", "")}</div>
             </div>
             <div class="r-well-cell">
               <span class="r-micro">Left</span>
@@ -392,13 +411,13 @@
     // Hero fill-in (text built here so the number itself never has to re-render on tick).
     const heroNum = el("fin-ov-hero-num");
     if (heroNum) {
-      const [whole, cents] = fmtRM(thisMonthExp).replace("RM ", "").split(".");
+      const [whole, cents] = fmtRM(steerExp).replace("RM ", "").split(".");
       heroNum.innerHTML = `${whole}<span class="r-hero-cents">.${cents}</span>`;
     }
     const heroCaption = el("fin-ov-hero-caption");
     if (heroCaption) {
       heroCaption.textContent = budget
-        ? `of your ${fmtRM(budget)} limit · ${spentPct}% used`
+        ? `of your ${fmtRM(budget)} steerable limit · ${spentPct}% used`
         : `Set a monthly limit to see how this month is tracking.`;
     }
     const heroNote = el("fin-ov-hero-note");
@@ -406,7 +425,7 @@
       heroNote.textContent = !budget
         ? "Nothing needs you here yet."
         : overBudget
-        ? `Over by ${fmtRM(thisMonthExp - budget)}. This needs you.`
+        ? `Over by ${fmtRM(steerExp - budget)}. This needs you.`
         : closeBudget
         ? "Getting close to your limit."
         : "Comfortably under. Nothing needs you here.";
@@ -443,12 +462,23 @@
 
     drawIncomePanel(el("fin-ov-income-section"), thisMonthIncome, allIncome, thisYear, thisMonth);
     drawSurplusPanel(el("fin-ov-surplus-section"), thisSurplus, allSurplus, thisYear, thisMonth);
-    draw503020(el("fin-ov-rule-section"), income, split, ruleSavings, allCats, buckets, activeRule(), subsMonthly);
+    // The rule now runs on the STEERABLE LIMIT, not the allowance. Applying 50/30/20 to
+    // income produced a Needs target of RM1,250 against a RM1,000 limit, i.e. two
+    // contradictory budgets on one screen. The limit is already commitment-free, so the
+    // bars finally describe real choices. subsReserve is gone: commitments have their
+    // own block now, so the marker on the Needs bar is redundant.
+    draw503020(el("fin-ov-rule-section"), budget || 0, split, ruleSavings, allCats,
+               buckets, activeRule(), 0);
     drawSavingsChart(el("fin-ov-chart-wrap"), el("fin-ov-chart-caption"), monthlySavings);
     drawProjections(el("fin-ov-projections"), goals, avgMonthlySavings, totalSaved);
     drawCategoryChips(el("fin-ov-cats-section"), thisMonthRows);
     drawExpensePreview(el("fin-ov-exp-preview"), thisMonthRows);
-    drawCommitted(el("fin-ov-committed-section"), subsItems, subsMonthly);
+    drawCommitted(el("fin-ov-committed-section"), subsItems, subsMonthly, {
+      fixedTotal: split.fixed || subsMonthly,
+      available: availableToSteer,
+      fixedShare: fixedShare,
+      limitOverAvailable: limitOverAvailable,
+    });
   }
 
   // ── Category chip row (Overview) ───────────────────────────
@@ -509,9 +539,9 @@
   }
 
   // ── Committed subscriptions (Overview) ─────────────────────
-  function drawCommitted(section, subsItems, subsMonthly) {
+  function drawCommitted(section, subsItems, subsMonthly, opts) {
     if (!section) return;
-    if (!subsItems.length) {
+    if (!subsItems.length && !(opts && opts.fixedTotal > 0)) {
       section.innerHTML = `
         <div class="fin-ov-section-head"><span class="r-eyebrow">(committed)</span></div>
         <p class="fin-committed-empty">No subscriptions tracked yet. Add them from the Subscriptions tab.</p>`;
@@ -538,12 +568,24 @@
           <div class="fin-committed-amtv">${fmtRM(amt).replace("RM ", "")}</div>
         </div>`;
     }).join("");
+    // The headline is TOTAL commitments this month (rent plus subscriptions plus
+    // anything else tagged "fixed"), not just subscriptions. Rent is by far the largest
+    // fixed cost, so a committed block that omitted it would be the same half-truth the
+    // old subscription-reserve marker told.
+    const fixedTotal = (opts && opts.fixedTotal) || subsMonthly;
+    const available  = opts && opts.available;
+    const share      = opts && opts.fixedShare;
+    const warn       = opts && opts.limitOverAvailable;
+
     section.innerHTML = `
       <div class="fin-ov-section-head"><span class="r-eyebrow">(committed)</span></div>
       <div class="fin-committed-total">
-        <span class="fin-committed-amt">${fmtRM(subsMonthly)}</span>
-        <span class="fin-committed-sub">a month · ${subsItems.length} subscription${subsItems.length === 1 ? "" : "s"}</span>
+        <span class="fin-committed-amt">${fmtRM(fixedTotal)}</span>
+        <span class="fin-committed-sub">fixed this month${
+          share != null ? ` · ${share}% of allowance` : ""}</span>
       </div>
+      ${available != null ? `<p class="fin-committed-avail">${fmtRM(available)} available to steer.</p>` : ""}
+      ${warn ? `<p class="fin-committed-warn">Your limit is ${fmtRM(warn.limit)} but ${fmtRM(warn.available)} is available after commitments.</p>` : ""}
       ${rows}`;
   }
 
@@ -899,13 +941,15 @@
           <span class="fin-cat-name">${esc(cat)}</span>
           <select class="fin-cat-select r-mini-select" data-cat="${esc(cat.toLowerCase())}">
             <option value="unsorted" ${cur === "unsorted" ? "selected" : ""}>Unsorted</option>
+            <option value="fixed" ${cur === "fixed" ? "selected" : ""}>Fixed (rent, subs)</option>
             <option value="need" ${cur === "need" ? "selected" : ""}>Need</option>
             <option value="want" ${cur === "want" ? "selected" : ""}>Want</option>
           </select>
         </div>`;
     }).join("");
     section.innerHTML = `
-      <div class="fin-ov-section-head"><span class="fin-ov-section-label">Tag categories as needs / wants</span></div>
+      <div class="fin-ov-section-head"><span class="fin-ov-section-label">Tag categories</span></div>
+      <p class="r-status" style="margin:0 0 10px">Fixed is for money that leaves whether or not you decide: rent, subscriptions. It sits outside your steerable limit and is reported, not budgeted.</p>
       <div class="fin-cat-list">${rows}</div>
       <div class="r-actions">
         <button class="btn-primary r-btn fin-cats-save">Save</button>
@@ -916,7 +960,9 @@
     section.querySelector(".fin-cats-save").addEventListener("click", async () => {
       const map = {};
       section.querySelectorAll(".fin-cat-select").forEach((sel) => {
-        if (sel.value === "need" || sel.value === "want") map[sel.dataset.cat] = sel.value;
+        if (sel.value === "need" || sel.value === "want" || sel.value === "fixed") {
+          map[sel.dataset.cat] = sel.value;
+        }
       });
       section.querySelector(".fin-cats-status").textContent = "Saving…";
       await saveSettings({ category_buckets: map });
