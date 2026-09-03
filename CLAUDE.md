@@ -23,6 +23,12 @@ It pairs with a Discord bot, `jadefrog-scheduler` ("Jade"), in a separate repo o
   `window.dmicoEnqueue(action)` into kv `hub_actions`. The bot drains it every ~30s.
 - `now.js` holds the ONE shared state computation (`dmicoComputeState`) feeding the Home
   state block, the rail attention dots, and the banner. Keep it single-source.
+- `now.js` also exports `window.dmicoSteerableSpend(rows, buckets, ref)`, the ONE rule for
+  "money he actually steers this month": commitments (categories bucketed `fixed`) and
+  rows dated later than today are both excluded, because `monthly_budget` means the
+  STEERABLE limit. Any new surface comparing spend to that limit must call it. This rule
+  drifted eight ways once (finance.js, now.js, dashboard.js and five bot services) and
+  Home ended up saying "over by RM209" while Finance said "RM38.55 of RM979.70".
 
 ## Conventions (non-negotiable)
 

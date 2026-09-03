@@ -15,6 +15,29 @@
    ───────────────────────────────────────────────────────────── */
 
 (function () {
+
+  // ── The one spend rule ─────────────────────────────────────
+  // Every surface that compares spending against monthly_budget must use this, or it
+  // will drift. It already drifted eight ways: finance.js, now.js, dashboard.js and
+  // five services in the bot each carried their own copy, and on 3 Sep 2026 Home said
+  // "over by RM209" while Finance said "RM38.55 of RM979.70".
+  //
+  // Two exclusions. A category bucketed "fixed" is a commitment, and monthly_budget has
+  // meant the STEERABLE limit since 1 Sep 2026, so commitments sit outside it. A row
+  // dated later than today has not been paid, so it is scheduled, not spent.
+  window.dmicoSteerableSpend = function (expRows, buckets, ref) {
+    const d = ref || new Date();
+    const endOfToday = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+    const map = buckets || {};
+    return (expRows || []).reduce((sum, e) => {
+      const x = new Date(e.logged_at);
+      if (x.getFullYear() !== d.getFullYear() || x.getMonth() !== d.getMonth()) return sum;
+      if (x > endOfToday) return sum;
+      if (map[(e.category || "").trim().toLowerCase()] === "fixed") return sum;
+      return sum + Number(e.amount || 0);
+    }, 0);
+  };
+
   let _cache = null;
   let _cacheAt = 0;
   const CACHE_MS = 60000;
@@ -135,16 +158,11 @@
     try {
       if (sb) {
         const [{ data: setRows }, { data: expRows }] = await Promise.all([
-          sb.from("finance_settings").select("monthly_budget").limit(1),
-          sb.from("finance_expenses").select("amount, logged_at"),
+          sb.from("finance_settings").select("monthly_budget, category_buckets").limit(1),
+          sb.from("finance_expenses").select("amount, logged_at, category"),
         ]);
         const budget = Number(setRows?.[0]?.monthly_budget || 0);
-        const d = new Date();
-        const spend = (expRows || []).reduce((s, e) => {
-          const x = new Date(e.logged_at);
-          return (x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth())
-            ? s + Number(e.amount || 0) : s;
-        }, 0);
+        const spend  = window.dmicoSteerableSpend(expRows, setRows?.[0]?.category_buckets);
         if (budget > 0) {
           const left = budget - spend;
           const pct = (spend / budget) * 100;

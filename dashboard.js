@@ -51,7 +51,7 @@ window.renderDashboard = async function (container, sb) {
   // Fetch all signals in parallel
   const todayISO = today.toISOString().split("T")[0];
 
-  const [exams, chores, expenses, goals, proposalRes, weightLogs, exerciseProfile, weekCalRes, anchRes, adhRes] =
+  const [exams, chores, expenses, goals, proposalRes, weightLogs, exerciseProfile, weekCalRes, anchRes, adhRes, finSetRes] =
     await Promise.all([
       sb.from("study_exams")
         .select("title, exam_date")
@@ -59,7 +59,7 @@ window.renderDashboard = async function (container, sb) {
         .order("exam_date", { ascending: true })
         .limit(1),
       sb.from("hygiene_items").select("name, last_done, interval_days"),
-      sb.from("finance_expenses").select("amount, logged_at"),
+      sb.from("finance_expenses").select("amount, logged_at, category"),
       sb.from("finance_goals").select("label, target, current"),
       sb.from("kv_store").select("value").eq("key", "pending_proposal").limit(1),
       sb.from("weight_logs")
@@ -74,6 +74,8 @@ window.renderDashboard = async function (container, sb) {
       // Control's routine anchors + today's check-in history, for the "anchors held" stat.
       sb.from("kv_store").select("value").eq("key", "routine_anchors").limit(1),
       sb.from("kv_store").select("value").eq("key", "routine_adherence").limit(1),
+      // category_buckets, so the Finance tile applies the same spend rule as everything else.
+      sb.from("finance_settings").select("category_buckets").limit(1),
     ]);
 
   // ── Self-study (feeds the focus card's "today" priority line) ───────────
@@ -98,14 +100,15 @@ window.renderDashboard = async function (container, sb) {
   const worstChore = overdueChores[0] ?? null;
 
   // ── Finance ────────────────────────────────────────────────
-  const yr = today.getFullYear();
-  const mo = today.getMonth();
-  const monthSpend = (expenses.data ?? [])
-    .filter((e) => {
-      const d = new Date(e.logged_at);
-      return d.getFullYear() === yr && d.getMonth() === mo;
-    })
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+  // Same rule as the state block above it and the Finance module it links to. Commitments
+  // and money not yet paid are both excluded, because monthly_budget means the steerable
+  // limit. See window.dmicoSteerableSpend in now.js.
+  if (!window.dmicoSteerableSpend) {
+    console.error("dashboard: now.js has not loaded, the Finance tile would be wrong");
+  }
+  const monthSpend = window.dmicoSteerableSpend
+    ? window.dmicoSteerableSpend(expenses.data ?? [], finSetRes?.data?.[0]?.category_buckets, today)
+    : 0;
   const topGoal = (goals.data ?? [])
     .map((g) => ({
       ...g,
