@@ -351,6 +351,19 @@
     // The hero measures STEERABLE spend against the steerable limit. Commitments are
     // deliberately excluded so the headline is a number he can respond to.
     const spentLeft    = budget ? budget - steerExp : null;
+
+    // Daily pace: what is left, spread across the days still to come INCLUDING today,
+    // because today is still spendable. Deliberately a guide and not a cap: it is
+    // recomputed from live numbers every render, so an expensive day quietly lowers
+    // tomorrow's figure and a quiet day raises it. Nothing blocks, nothing warns.
+    //
+    // This only became a truthful number after commitments moved out of the limit.
+    // Before that, whether rent had been logged yet would swing it wildly (RM1,370
+    // landing on the 1st made the "per day" figure collapse), which is exactly the
+    // kind of number you learn to ignore.
+    const daysAhead = daysLeft + 1;
+    const perDay = (spentLeft !== null && spentLeft > 0 && daysAhead > 0)
+      ? spentLeft / daysAhead : null;
     const spentPct     = budget ? Math.min(999, Math.round((steerExp / budget) * 100)) : 0;
     const overBudget   = budget && steerExp > budget;
     const closeBudget  = budget && !overBudget && spentPct >= 80;
@@ -396,7 +409,12 @@
               <span class="r-micro">Days left</span>
               <div class="r-well-val">${daysLeft}</div>
             </div>
+            <div class="r-well-cell">
+              <span class="r-micro">A day</span>
+              <div class="r-well-val">${perDay === null ? "—" : fmtRM(perDay).replace("RM ", "")}</div>
+            </div>
           </div>
+          ${perDay !== null ? `<p class="fin-ov-pace-note">Rough pace, not a rule. Spend more today and tomorrow's figure drops a little.</p>` : ""}
 
           <div id="fin-ov-income-section" class="fin-ov-section"></div>
           <div id="fin-ov-surplus-section" class="fin-ov-section"></div>

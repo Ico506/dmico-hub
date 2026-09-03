@@ -4139,3 +4139,26 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
 .fin-committed-warn {
   font-size: 13px; color: var(--clay); margin: 6px 0 0; line-height: 1.5;
 }
+
+/* ── Four-cell stat well (Finance overview: steered / left / days / per day) ──
+   Scoped with :has so the three-cell wells in Life, Control and Exercise keep their
+   existing layout untouched. On a phone four cells across is unreadable, so it folds
+   to 2x2 and the left-hand border is redrawn per row rather than per cell. */
+.r-well:has(> .r-well-cell:nth-child(4)) { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 720px) {
+  .r-well:has(> .r-well-cell:nth-child(4)) { grid-template-columns: repeat(2, 1fr); }
+  .r-well:has(> .r-well-cell:nth-child(4)) .r-well-cell + .r-well-cell { border-left: none; }
+  .r-well:has(> .r-well-cell:nth-child(4)) .r-well-cell:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+  .r-well:has(> .r-well-cell:nth-child(4)) .r-well-cell:nth-child(n+3) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* The pace line. Quiet on purpose: it is a guide, not a rule, and saying so once
+   stops the number reading as a target to hit. */
+.fin-ov-pace-note {
+  font-size: 12px; color: var(--ink-faint); margin: 8px 0 0; line-height: 1.5;
+}
