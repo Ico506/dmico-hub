@@ -33,6 +33,12 @@ It pairs with a Discord bot, `jadefrog-scheduler` ("Jade"), in a separate repo o
 - **No secrets in this repo.** `config.js` holds only the Supabase *publishable* key and
   the *public* VAPID key. Both are safe to ship. Never add a service_role key.
 - Use relative paths (`./`), never absolute (`/`), because Pages serves under `/dmico-hub/`.
+- **Bump the `?v=` token in `index.html` on every deploy.** Every local script and the
+  stylesheet carry one shared version query. Without it the browser happily serves
+  month-old JavaScript, which is exactly how the `fixed` bucket shipped on 1 Sep 2026
+  and was still invisible on the 3rd. `sw.js` fetches same-origin JS, CSS and HTML with
+  `cache: "no-store"` as a safety net, but the token is the first line of defence and
+  the only one that works before the service worker takes control.
 - Reuse existing patterns and CSS variables before inventing new ones.
 
 ## Design system

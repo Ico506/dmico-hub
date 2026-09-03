@@ -4162,3 +4162,27 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
 .fin-ov-pace-note {
   font-size: 12px; color: var(--ink-faint); margin: 8px 0 0; line-height: 1.5;
 }
+
+/* Commitments editor: name, monthly amount, remove. Folds to two lines on a phone so
+   the amount field keeps a usable width. */
+.fin-commit-edit-list { display: flex; flex-direction: column; gap: 8px; }
+.fin-commit-edit-row {
+  display: grid;
+  grid-template-columns: 1fr 118px auto;
+  align-items: center;
+  gap: 8px;
+}
+.fin-commit-edit-row input {
+  font-family: var(--body);
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  width: 100%;
+}
+@media (max-width: 520px) {
+  .fin-commit-edit-row { grid-template-columns: 1fr auto; }
+  .fin-commit-edit-row .fin-commit-name-in { grid-column: 1 / -1; }
+}

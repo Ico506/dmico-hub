@@ -256,6 +256,11 @@
       return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
     });
 
+    // A row dated after today records money that has NOT left yet. Pre-logging a known
+    // payment (rent on the 21st) is sensible and the hub used to punish it by counting
+    // it as already spent on the 3rd. Anything past this line is scheduled, not spent.
+    const endOfToday = new Date(thisYear, thisMonth, new Date().getDate(), 23, 59, 59, 999);
+
     // Per-month net savings across the 6-month window.
     // net is null only when neither allowance nor surplus is logged for that month.
     const monthlySavings = windowMonths.map(({ year, month }) => {
@@ -269,7 +274,7 @@
       const exp = allExpenses
         .filter((e) => {
           const d = new Date(e.logged_at);
-          return d.getFullYear() === year && d.getMonth() === month;
+          return d.getFullYear() === year && d.getMonth() === month && d <= endOfToday;
         })
         .reduce((s, e) => s + Number(e.amount), 0);
       const hasAnyIncome = inc !== undefined || surplusAmt > 0;
@@ -322,19 +327,29 @@
     // "am I overspending on Needs" against money he cannot steer answers a question he
     // cannot act on. Commitments come off the top and are REPORTED; the limit and the
     // needs/wants bars then describe only money he actually chooses how to spend.
-    const split = { need: 0, want: 0, unsorted: 0, fixed: 0 };
+    const split     = { need: 0, want: 0, unsorted: 0, fixed: 0 };
+    const scheduled = { fixed: 0, steerable: 0 };
     thisMonthRows.forEach((e) => {
       const cat = (e.category || "").trim().toLowerCase();
-      const b = buckets[cat];
-      if (b === "fixed") split.fixed += Number(e.amount);
-      else if (b === "need") split.need += Number(e.amount);
-      else if (b === "want") split.want += Number(e.amount);
-      else split.unsorted += Number(e.amount);
+      const b   = buckets[cat];
+      const amt = Number(e.amount);
+      // Not paid yet, so it cannot be spent yet. Scheduled fixed money is not surfaced
+      // on its own because expected commitments already account for it below.
+      if (new Date(e.logged_at) > endOfToday) {
+        if (b === "fixed") scheduled.fixed += amt;
+        else scheduled.steerable += amt;
+        return;
+      }
+      if (b === "fixed") split.fixed += amt;
+      else if (b === "need") split.need += amt;
+      else if (b === "want") split.want += amt;
+      else split.unsorted += amt;
     });
-    // Steerable = everything this month that is not a fixed commitment. When nothing is
-    // tagged "fixed" this equals thisMonthExp, so behaviour is identical to before and
-    // the change is safe to deploy before he tags anything.
-    const steerExp = thisMonthExp - split.fixed;
+    // Steerable is built by addition, not by subtracting commitments from a total. The
+    // subtraction version could disagree with its own parts once future-dated rows
+    // entered the picture, and a budget that contradicts itself is the whole reason
+    // this module got rebuilt in the first place.
+    const steerExp = split.need + split.want + split.unsorted;
     const allCats = [...new Set(allExpenses.map((e) => (e.category || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b));
 
@@ -343,6 +358,19 @@
     const subsData = (await window.dmicoKvGet("finance_subscriptions")) || {};
     const subsItems = Array.isArray(subsData.items) ? subsData.items : [];
     const subsMonthly = subsItems.reduce((s, it) => s + (it.cycle === "yearly" ? Number(it.amount || 0) / 12 : Number(it.amount || 0)), 0);
+
+    // Fixed commitments that are not subscriptions (rent, chiefly). Stated once, in kv,
+    // rather than inferred from what has been logged.
+    const commitData  = (await window.dmicoKvGet("finance_commitments")) || {};
+    const commitItems = Array.isArray(commitData.items) ? commitData.items : [];
+    const commitMonthly = commitItems.reduce((s, it) => s + Number(it.amount || 0), 0);
+
+    // A commitment is a fact about the MONTH, not a tally of what has cleared so far.
+    // Reading it off logged expenses meant Available slid downward all month as
+    // subscriptions charged on the 4th, 17th, 22nd, 24th and 28th, so the "your limit
+    // exceeds what is available" line appeared and vanished depending on the date.
+    // That is the collapsing figure this module already killed once, one layer up.
+    const expectedCommitments = subsMonthly + commitMonthly;
 
     // Hero: money left this month against the spending limit. Days left counts what
     // remains in the calendar month, today excluded.
@@ -369,11 +397,11 @@
     const closeBudget  = budget && !overBudget && spentPct >= 80;
 
     // Commitments as reported facts, never as advice.
-    const availableToSteer = income ? income - split.fixed : null;
+    const availableToSteer = income ? income - expectedCommitments : null;
     const limitOverAvailable = (budget && availableToSteer != null && budget > availableToSteer)
       ? { limit: budget, available: availableToSteer } : null;
-    const fixedShare = (income > 0 && split.fixed > 0)
-      ? Math.round((split.fixed / income) * 100) : null;
+    const fixedShare = (income > 0 && expectedCommitments > 0)
+      ? Math.round((expectedCommitments / income) * 100) : null;
 
     // Render shell.
     panel.innerHTML = `
@@ -398,7 +426,7 @@
 
           <div class="r-well">
             <div class="r-well-cell">
-              <span class="r-micro">${split.fixed > 0 ? "Steered" : "Spent"}</span>
+              <span class="r-micro">${expectedCommitments > 0 ? "Steered" : "Spent"}</span>
               <div class="r-well-val">${fmtRM(steerExp).replace("RM ", "")}</div>
             </div>
             <div class="r-well-cell">
@@ -415,6 +443,7 @@
             </div>
           </div>
           ${perDay !== null ? `<p class="fin-ov-pace-note">Rough pace, not a rule. Spend more today and tomorrow's figure drops a little.</p>` : ""}
+          ${scheduled.steerable > 0 ? `<p class="fin-ov-pace-note">${fmtRM(scheduled.steerable)} is logged for later this month, not counted as spent yet.</p>` : ""}
 
           <div id="fin-ov-income-section" class="fin-ov-section"></div>
           <div id="fin-ov-surplus-section" class="fin-ov-section"></div>
@@ -511,7 +540,9 @@
     drawCategoryChips(el("fin-ov-cats-section"), thisMonthRows);
     drawExpensePreview(el("fin-ov-exp-preview"), thisMonthRows);
     drawCommitted(el("fin-ov-committed-section"), subsItems, subsMonthly, {
-      fixedTotal: split.fixed || subsMonthly,
+      fixedTotal: expectedCommitments,
+      landed: split.fixed,
+      commitItems: commitItems,
       available: availableToSteer,
       fixedShare: fixedShare,
       limitOverAvailable: limitOverAvailable,
@@ -575,13 +606,18 @@
     section.querySelector(".fin-ov-see-btn").addEventListener("click", goExpenses);
   }
 
-  // ── Committed subscriptions (Overview) ─────────────────────
+  // ── Committed: subscriptions plus stated commitments (Overview) ────
   function drawCommitted(section, subsItems, subsMonthly, opts) {
     if (!section) return;
     if (!subsItems.length && !(opts && opts.fixedTotal > 0)) {
       section.innerHTML = `
-        <div class="fin-ov-section-head"><span class="r-eyebrow">(committed)</span></div>
-        <p class="fin-committed-empty">No subscriptions tracked yet. Add them from the Subscriptions tab.</p>`;
+        <div class="fin-ov-section-head">
+          <span class="r-eyebrow">(committed)</span>
+          <button class="r-mini fin-commit-edit-btn">Edit commitments</button>
+        </div>
+        <p class="fin-committed-empty">Nothing committed yet. Subscriptions come from the Subscriptions tab; rent and anything else fixed goes in here.</p>`;
+      section.querySelector(".fin-commit-edit-btn")
+        .addEventListener("click", () => openCommitmentsEditor(section, (opts && opts.commitItems) || []));
       return;
     }
     const now = new Date();
@@ -609,21 +645,101 @@
     // anything else tagged "fixed"), not just subscriptions. Rent is by far the largest
     // fixed cost, so a committed block that omitted it would be the same half-truth the
     // old subscription-reserve marker told.
-    const fixedTotal = (opts && opts.fixedTotal) || subsMonthly;
-    const available  = opts && opts.available;
-    const share      = opts && opts.fixedShare;
-    const warn       = opts && opts.limitOverAvailable;
+    const fixedTotal  = (opts && opts.fixedTotal) || subsMonthly;
+    const available   = opts && opts.available;
+    const share       = opts && opts.fixedShare;
+    const warn        = opts && opts.limitOverAvailable;
+    const landed      = (opts && opts.landed) || 0;
+    const commitItems = (opts && opts.commitItems) || [];
+
+    // Stated commitments (rent and anything else fixed that is not a subscription) are
+    // listed above the subscription rows. They carry no renewal date because they are a
+    // monthly fact, not a countdown.
+    const commitRows = commitItems.map((it) => `
+        <div class="fin-committed-row">
+          <div class="fin-committed-dot"></div>
+          <div class="fin-committed-name">${esc(it.name || "")}</div>
+          <div class="fin-committed-amtv">${fmtRM(Number(it.amount || 0)).replace("RM ", "")}</div>
+        </div>`).join("");
 
     section.innerHTML = `
-      <div class="fin-ov-section-head"><span class="r-eyebrow">(committed)</span></div>
+      <div class="fin-ov-section-head">
+        <span class="r-eyebrow">(committed)</span>
+        <button class="r-mini fin-commit-edit-btn">Edit commitments</button>
+      </div>
       <div class="fin-committed-total">
         <span class="fin-committed-amt">${fmtRM(fixedTotal)}</span>
         <span class="fin-committed-sub">fixed this month${
           share != null ? ` · ${share}% of allowance` : ""}</span>
       </div>
       ${available != null ? `<p class="fin-committed-avail">${fmtRM(available)} available to steer.</p>` : ""}
+      ${fixedTotal > 0 ? `<p class="fin-committed-avail">${fmtRM(landed)} of it has left the account so far.</p>` : ""}
       ${warn ? `<p class="fin-committed-warn">Your limit is ${fmtRM(warn.limit)} but ${fmtRM(warn.available)} is available after commitments.</p>` : ""}
-      ${rows}`;
+      ${commitRows}${rows}`;
+
+    section.querySelector(".fin-commit-edit-btn")
+      .addEventListener("click", () => openCommitmentsEditor(section, commitItems));
+  }
+
+  // ── Commitments editor (kv `finance_commitments`) ──────────
+  // Inline above its own list, never modal, per the house pattern. Rent lives here
+  // rather than being read off logged expenses, so the figure holds still all month.
+  function openCommitmentsEditor(section, items) {
+    const draft = items.map((it) => ({ name: it.name || "", amount: it.amount }));
+    if (!draft.length) draft.push({ name: "", amount: "" });
+
+    function readBack() {
+      section.querySelectorAll(".fin-commit-edit-row").forEach((row, i) => {
+        if (!draft[i]) return;
+        draft[i].name   = row.querySelector(".fin-commit-name-in").value;
+        draft[i].amount = row.querySelector(".fin-commit-amt-in").value;
+      });
+    }
+
+    function paint() {
+      const rows = draft.map((it, i) => `
+        <div class="fin-commit-edit-row">
+          <input class="fin-commit-name-in" type="text" placeholder="Name (e.g. Room rent)" value="${esc(String(it.name == null ? "" : it.name))}" />
+          <input class="fin-commit-amt-in" type="number" min="0" step="0.01" placeholder="RM / month" value="${esc(String(it.amount == null ? "" : it.amount))}" />
+          <button class="r-mini fin-commit-drop" data-i="${i}">Remove</button>
+        </div>`).join("");
+
+      section.innerHTML = `
+        <div class="fin-ov-section-head"><span class="r-eyebrow">(committed)</span></div>
+        <p class="r-status" style="margin:0 0 10px">Fixed money that is not a subscription. Rent belongs here. Stated once, so the figure holds still whether or not it has been paid yet this month.</p>
+        <div class="fin-commit-edit-list">${rows}</div>
+        <div class="r-actions">
+          <button class="r-mini fin-commit-add">Add another</button>
+          <button class="btn-primary r-btn fin-commit-save">Save</button>
+          <button class="r-mini fin-commit-cancel">Cancel</button>
+          <span class="fin-commit-status r-status"></span>
+        </div>`;
+
+      section.querySelector(".fin-commit-add").addEventListener("click", () => {
+        readBack(); draft.push({ name: "", amount: "" }); paint();
+      });
+      section.querySelectorAll(".fin-commit-drop").forEach((b) => {
+        b.addEventListener("click", () => {
+          readBack();
+          draft.splice(Number(b.dataset.i), 1);
+          if (!draft.length) draft.push({ name: "", amount: "" });
+          paint();
+        });
+      });
+      section.querySelector(".fin-commit-cancel").addEventListener("click", renderOverview);
+      section.querySelector(".fin-commit-save").addEventListener("click", async () => {
+        readBack();
+        const clean = draft
+          .map((it) => ({ name: String(it.name || "").trim(), amount: parseFloat(it.amount) }))
+          .filter((it) => it.name && !isNaN(it.amount) && it.amount > 0)
+          .map((it) => ({ name: it.name, amount: Math.round(it.amount * 100) / 100 }));
+        section.querySelector(".fin-commit-status").textContent = "Saving…";
+        await window.dmicoKvSet("finance_commitments", { items: clean });
+        renderOverview();
+      });
+    }
+
+    paint();
   }
 
   // ── Income panel ───────────────────────────────────────────
