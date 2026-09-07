@@ -83,6 +83,9 @@ function showApp(session) {
   el("greeting").textContent = greeting(session);
   renderRail();
   renderBottomBar();
+  // Paint first from the local cache above, then reconcile with the synced copy so
+  // his phone and his desktop end up showing the same rail.
+  syncRailLayout();
   // Reopen the module you were last in, so a page reload (tab discarded in the
   // background, phone memory eviction, F5) doesn't dump you back on Home.
   const last = localStorage.getItem("dmico-last-module");
@@ -123,7 +126,9 @@ function injectRailStyles() {
     .rail-archive-sum::before{content:"▸ ";display:inline-block;transition:transform .15s;}
     .rail-archive[open] .rail-archive-sum::before{transform:rotate(90deg);}
     .rail-archive-sum:hover{opacity:.85;}
-    .rail-archive-list{display:flex;flex-direction:column;}
+    .rail-archive-list{display:flex;flex-direction:column;min-height:1.6rem;}
+    .rail-archive-empty{margin:.15rem .5rem .35rem;font-size:.72rem;opacity:.45;line-height:1.4;}
+    .rail-drop-into{background:var(--accent-wash,rgba(95,111,82,.14));border-radius:.6rem;}
     .lantern-archived{opacity:.6;}
     .lantern-archived:hover{opacity:1;}
     /* Attention state. Deliberately NOT called "lit", which already means "module is
@@ -144,19 +149,96 @@ function injectRailStyles() {
   document.head.appendChild(s);
 }
 
+/* ── Rail layout: order AND archive membership ────────────────
+   Order used to live in localStorage and archive membership lived in the MODULES
+   literal, which meant dragging something out of the archive could not survive a
+   reload. Both now live in one kv key so the rail agrees across his phone and his
+   desktop, with localStorage kept as a paint-first cache so the rail never flashes
+   while the network answers.
+
+   `known` is the subtle part. Without it, a module added to MODULES later with
+   archived:true would be missing from the saved archived list and would silently
+   un-archive itself. With it: a module he has seen obeys his choice, a module he has
+   never seen obeys the code default. */
+const RAIL_LAYOUT_KEY = "rail_layout";
+const RAIL_CACHE_KEY  = "dmico-rail-layout";
+const RAIL_PINNED     = ["dashboard"]; // Home is where he orients. It does not move.
+
+function railLayoutFromModules() {
+  return {
+    order: MODULES.map((m) => m.id),
+    archived: MODULES.filter((m) => m.archived).map((m) => m.id),
+    known: MODULES.map((m) => m.id),
+  };
+}
+
+function applyRailLayout(layout) {
+  if (!layout || !Array.isArray(layout.order)) return false;
+  const known = Array.isArray(layout.known) ? layout.known : layout.order;
+  const archived = Array.isArray(layout.archived) ? layout.archived : [];
+  let changed = false;
+  MODULES.forEach((m) => {
+    // A module he has never seen keeps whatever the code says.
+    if (!known.includes(m.id)) return;
+    const next = archived.includes(m.id) && !RAIL_PINNED.includes(m.id);
+    if (m.archived !== next) changed = true;
+    m.archived = next;
+  });
+  const before = MODULES.map((m) => m.id).join(",");
+  MODULES.sort((a, b) => {
+    const ai = layout.order.indexOf(a.id);
+    const bi = layout.order.indexOf(b.id);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+  if (MODULES.map((m) => m.id).join(",") !== before) changed = true;
+  return changed;
+}
+
+function saveRailLayout() {
+  const layout = railLayoutFromModules();
+  try { localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify(layout)); } catch (_) {}
+  // Layout is not worth blocking the rail for: fire and log.
+  if (window.dmicoKvSet) {
+    window.dmicoKvSet(RAIL_LAYOUT_KEY, layout)
+      .catch((e) => console.error("rail layout kv write failed", e));
+  }
+}
+
+/* Paint from cache, then reconcile with kv. Called once at boot after renderRail. */
+async function syncRailLayout() {
+  if (!window.dmicoKvGet) return;
+  let remote = null;
+  try { remote = await window.dmicoKvGet(RAIL_LAYOUT_KEY); }
+  catch (e) { console.error("rail layout kv read failed", e); return; }
+  if (!remote) {
+    // Nothing stored yet: seed kv from whatever this device is showing, which after
+    // migration is his real order rather than the code default.
+    saveRailLayout();
+    return;
+  }
+  if (applyRailLayout(remote)) {
+    try { localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify(railLayoutFromModules())); } catch (_) {}
+    renderRail();
+    renderBottomBar();
+  }
+}
+
 function renderRail() {
   injectRailStyles();
-  // Apply saved order to MODULES array so it persists across sessions.
-  const savedOrder = localStorage.getItem("dmico-rail-order");
-  if (savedOrder) {
-    try {
-      const order = JSON.parse(savedOrder);
-      MODULES.sort((a, b) => {
-        const ai = order.indexOf(a.id);
-        const bi = order.indexOf(b.id);
-        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-      });
-    } catch (_) {}
+  // Paint-first cache. Falls back to migrating the old order-only key once.
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(RAIL_CACHE_KEY) || "null"); } catch (_) {}
+  if (cached) {
+    applyRailLayout(cached);
+  } else {
+    const legacy = localStorage.getItem("dmico-rail-order");
+    if (legacy) {
+      try {
+        // Migrate: his saved order survives, archive membership starts from the code
+        // default because it was never stored anywhere before now.
+        applyRailLayout({ order: JSON.parse(legacy), archived: [], known: [] });
+      } catch (_) {}
+    }
   }
 
   const nav = el("modules");
@@ -169,9 +251,10 @@ function renderRail() {
     const b = document.createElement("button");
     b.className = "lantern " + (m.lit ? "lit" : "unlit") + (m.archived ? " lantern-archived" : "");
     b.dataset.id = m.id;
-    // Only active lanterns reorder; dragging an archived one into the live rail
-    // would fight the archive split.
-    if (!m.archived) b.setAttribute("draggable", "true");
+    // Everything drags now, in both directions, except Home. Archiving is how he
+    // curates attention, so it has to be reversible with the same gesture that
+    // caused it.
+    if (!RAIL_PINNED.includes(m.id)) b.setAttribute("draggable", "true");
     b.innerHTML =
       `<span class="dot"></span>` +
       `<span class="label">${m.label}</span>` +
@@ -213,14 +296,15 @@ function renderRail() {
     });
     b.addEventListener("drop", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       b.classList.remove("lantern-drag-above", "lantern-drag-below");
       if (!dragSrc || dragSrc === b) return;
       const rect = b.getBoundingClientRect();
       const above = e.clientY < rect.top + rect.height / 2;
-      nav.insertBefore(dragSrc, above ? b : b.nextSibling);
-      const newOrder = Array.from(nav.querySelectorAll(":scope > .lantern")).map((l) => l.dataset.id);
-      MODULES.sort((a, bm) => newOrder.indexOf(a.id) - newOrder.indexOf(bm.id));
-      localStorage.setItem("dmico-rail-order", JSON.stringify(newOrder));
+      // Drop next to whichever lantern was targeted, inside whichever group it lives
+      // in. That is what turns a reorder and an archive move into the same gesture.
+      b.parentNode.insertBefore(dragSrc, above ? b : b.nextSibling);
+      syncRailFromDom(nav);
     });
 
     container.appendChild(b);
@@ -231,24 +315,92 @@ function renderRail() {
 
   active.forEach((m) => buildLantern(m, nav));
 
-  if (archived.length) {
-    const box = document.createElement("details");
-    box.className = "rail-archive";
-    // Remember whether the drawer was left open.
-    box.open = localStorage.getItem("dmico-archive-open") === "1";
-    box.addEventListener("toggle", () =>
-      localStorage.setItem("dmico-archive-open", box.open ? "1" : "0")
-    );
-    const sum = document.createElement("summary");
-    sum.className = "rail-archive-sum";
-    sum.textContent = `Archive (${archived.length})`;
-    box.appendChild(sum);
-    const inner = document.createElement("div");
-    inner.className = "rail-archive-list";
-    box.appendChild(inner);
-    archived.forEach((m) => buildLantern(m, inner));
-    nav.appendChild(box);
+  // The drawer is built even when empty. It used to be skipped entirely, which would
+  // have left nowhere to drop a lantern once the archive was emptied, and the archive
+  // would then be a one-way door again.
+  const box = document.createElement("details");
+  box.className = "rail-archive";
+  // Remember whether the drawer was left open.
+  box.open = localStorage.getItem("dmico-archive-open") === "1";
+  box.addEventListener("toggle", () =>
+    localStorage.setItem("dmico-archive-open", box.open ? "1" : "0")
+  );
+  const sum = document.createElement("summary");
+  sum.className = "rail-archive-sum";
+  sum.textContent = `Archive (${archived.length})`;
+  // Spring-loaded: hovering a drag over the closed drawer opens it, so archiving
+  // something does not mean opening the drawer first.
+  sum.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    if (!box.open) box.open = true;
+  });
+  box.appendChild(sum);
+  const inner = document.createElement("div");
+  inner.className = "rail-archive-list";
+  if (!archived.length) {
+    const hint = document.createElement("p");
+    hint.className = "rail-archive-empty";
+    hint.textContent = "Drag a lantern here to archive it.";
+    inner.appendChild(hint);
   }
+  box.appendChild(inner);
+  archived.forEach((m) => buildLantern(m, inner));
+  nav.appendChild(box);
+
+  // Containers accept drops too, not just sibling lanterns. Without this there is
+  // nothing to catch a drop on an empty drawer or past the end of the rail.
+  const wireContainer = (container, isArchive) => {
+    container.addEventListener("dragover", (e) => {
+      if (!dragSrc) return;
+      e.preventDefault();
+      container.classList.add("rail-drop-into");
+    });
+    container.addEventListener("dragleave", (e) => {
+      if (e.target === container) container.classList.remove("rail-drop-into");
+    });
+    container.addEventListener("drop", (e) => {
+      container.classList.remove("rail-drop-into");
+      if (!dragSrc) return;
+      e.preventDefault();
+      // The archive list sits inside the rail, so without this the drop bubbles up
+      // and the rail's own handler immediately drags it back out. Found by test.
+      e.stopPropagation();
+      const hint = container.querySelector(".rail-archive-empty");
+      if (hint) hint.remove();
+      if (isArchive) container.appendChild(dragSrc);
+      // In the rail, land before the archive drawer rather than after it.
+      else container.insertBefore(dragSrc, box);
+      syncRailFromDom(nav);
+    });
+  };
+  wireContainer(nav, false);
+  wireContainer(inner, true);
+}
+
+/* One reading of the truth, taken from where the lanterns actually are. Deriving it
+   from the DOM rather than tracking it per drop handler means order and archive
+   membership cannot disagree, which is the class of bug this project keeps hitting. */
+function syncRailFromDom(nav) {
+  const activeIds = Array.from(nav.querySelectorAll(":scope > .lantern")).map((l) => l.dataset.id);
+  const listEl = nav.querySelector(".rail-archive-list");
+  const archivedIds = listEl
+    ? Array.from(listEl.querySelectorAll(".lantern")).map((l) => l.dataset.id) : [];
+  const rank = activeIds.concat(archivedIds);
+
+  MODULES.forEach((m) => {
+    if (RAIL_PINNED.includes(m.id)) { m.archived = false; return; }
+    if (rank.includes(m.id)) m.archived = archivedIds.includes(m.id);
+  });
+  MODULES.sort((a, b) => {
+    const ai = rank.indexOf(a.id);
+    const bi = rank.indexOf(b.id);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+  saveRailLayout();
+  // Deferred so the browser finishes its drag teardown against nodes that still
+  // exist, then the Archive counter and the bottom bar catch up.
+  setTimeout(() => { renderRail(); renderBottomBar(); }, 0);
 }
 
 /* ── The mobile bottom bar ────────────────────────────────────
