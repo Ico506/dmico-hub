@@ -25,15 +25,22 @@
   // Two exclusions. A category bucketed "fixed" is a commitment, and monthly_budget has
   // meant the STEERABLE limit since 1 Sep 2026, so commitments sit outside it. A row
   // dated later than today has not been paid, so it is scheduled, not spent.
-  window.dmicoSteerableSpend = function (expRows, buckets, ref) {
+  // Does this single row count as steerable money that has actually been spent? The
+  // month total below is built from this, and so is the Finance day strip, so the two
+  // exclusions live in exactly one place.
+  window.dmicoIsSteerable = function (row, buckets, ref) {
     const d = ref || new Date();
     const endOfToday = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-    const map = buckets || {};
+    if (new Date(row.logged_at) > endOfToday) return false;
+    return (buckets || {})[(row.category || "").trim().toLowerCase()] !== "fixed";
+  };
+
+  window.dmicoSteerableSpend = function (expRows, buckets, ref) {
+    const d = ref || new Date();
     return (expRows || []).reduce((sum, e) => {
       const x = new Date(e.logged_at);
       if (x.getFullYear() !== d.getFullYear() || x.getMonth() !== d.getMonth()) return sum;
-      if (x > endOfToday) return sum;
-      if (map[(e.category || "").trim().toLowerCase()] === "fixed") return sum;
+      if (!window.dmicoIsSteerable(e, buckets, d)) return sum;
       return sum + Number(e.amount || 0);
     }, 0);
   };

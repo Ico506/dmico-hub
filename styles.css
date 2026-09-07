@@ -4186,3 +4186,10 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
   .fin-commit-edit-row { grid-template-columns: 1fr auto; }
   .fin-commit-edit-row .fin-commit-name-in { grid-column: 1 / -1; }
 }
+
+/* Seven-day spend strip, sitting between the stat well and the pace note. The eyebrow
+   carries the label so the SVG stays chrome-free, per the design brief. */
+.fin-daystrip { margin: 14px 0 0; }
+.fin-daystrip .r-eyebrow { display: block; margin-bottom: 2px; }
+.fin-daystrip svg { display: block; overflow: visible; }
+.fin-daystrip-empty { font-size: 13px; color: var(--ink-faint); margin: 6px 0 0; }

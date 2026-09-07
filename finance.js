@@ -389,6 +389,27 @@
     // Before that, whether rent had been logged yet would swing it wildly (RM1,370
     // landing on the 1st made the "per day" figure collapse), which is exactly the
     // kind of number you learn to ignore.
+    // Today, and the seven days behind it. Deliberately built from allExpenses rather
+    // than thisMonthRows: on the 3rd of a month the last seven days reach back into the
+    // previous one, and a strip that silently started at the 1st would be a lie.
+    if (!window.dmicoIsSteerable) {
+      console.error("finance: now.js has not loaded, the day strip would be wrong");
+    }
+    const dayKey = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    const todayKey = dayKey(now);
+    const dayTotals = {};
+    (allExpenses || []).forEach((e) => {
+      if (window.dmicoIsSteerable && !window.dmicoIsSteerable(e, buckets, now)) return;
+      const k = dayKey(new Date(e.logged_at));
+      dayTotals[k] = (dayTotals[k] || 0) + Number(e.amount || 0);
+    });
+    const todaySpend = dayTotals[todayKey] || 0;
+    const lastSeven = [];
+    for (let i = 6; i >= 0; i--) {
+      const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      lastSeven.push({ date: dt, amount: dayTotals[dayKey(dt)] || 0, isToday: i === 0 });
+    }
+
     const daysAhead = daysLeft + 1;
     const perDay = (spentLeft !== null && spentLeft > 0 && daysAhead > 0)
       ? spentLeft / daysAhead : null;
@@ -434,14 +455,15 @@
               <div class="r-well-val${spentLeft === null ? "" : spentLeft < 0 ? " r-well-val-warn" : " r-well-val-accent"}">${spentLeft === null ? "—" : spentLeft < 0 ? "−" + fmtRM(Math.abs(spentLeft)).replace("RM ", "") : fmtRM(spentLeft).replace("RM ", "")}</div>
             </div>
             <div class="r-well-cell">
-              <span class="r-micro">Days left</span>
-              <div class="r-well-val">${daysLeft}</div>
+              <span class="r-micro">Today</span>
+              <div class="r-well-val">${fmtRM(todaySpend).replace("RM ", "")}</div>
             </div>
             <div class="r-well-cell">
               <span class="r-micro">A day</span>
               <div class="r-well-val">${perDay === null ? "—" : fmtRM(perDay).replace("RM ", "")}</div>
             </div>
           </div>
+          <div id="fin-ov-daystrip" class="fin-daystrip"></div>
           ${perDay !== null ? `<p class="fin-ov-pace-note">Rough pace, not a rule. Spend more today and tomorrow's figure drops a little.</p>` : ""}
           ${scheduled.steerable > 0 ? `<p class="fin-ov-pace-note">${fmtRM(scheduled.steerable)} is logged for later this month, not counted as spent yet.</p>` : ""}
 
@@ -526,6 +548,7 @@
       renderOverview();
     });
 
+    drawDayStrip(el("fin-ov-daystrip"), lastSeven, perDay);
     drawIncomePanel(el("fin-ov-income-section"), thisMonthIncome, allIncome, thisYear, thisMonth);
     drawSurplusPanel(el("fin-ov-surplus-section"), thisSurplus, allSurplus, thisYear, thisMonth);
     // The rule now runs on the STEERABLE LIMIT, not the allowance. Applying 50/30/20 to
@@ -1121,6 +1144,102 @@
       await saveSettings({ category_buckets: map });
       renderOverview();
     });
+  }
+
+  // ── Day strip (SVG, last 7 days, pace as a reference line) ─
+  // Today's figure on its own is trivia. It becomes information sitting next to the
+  // pace, so the strip draws both: seven bars and one line. "Am I consistently above
+  // it" then answers itself without a click, which a toggle between day and week could
+  // never do because it shows one or the other.
+  //
+  // One series, so no legend and no per-bar number wallpaper: only today is labelled.
+  // Every bar carries a <title>, which is a free native tooltip for the rest.
+  // Deliberately NO warning colour on bars above the line. The pace is documented as a
+  // guide and not a cap, and colouring it red would quietly promote it to a rule.
+  function drawDayStrip(wrap, days, perDay) {
+    if (!wrap) return;
+    const amounts = days.map((d) => d.amount);
+    if (!amounts.some((a) => a > 0)) {
+      wrap.innerHTML = `<span class="r-eyebrow">(last 7 days)</span>
+        <p class="fin-daystrip-empty">Nothing logged in the last seven days.</p>`;
+      return;
+    }
+
+    const W = 500, H = 112;
+    const padTop = 26, padBot = 18, padL = 8, padR = 42;
+    const plotH = H - padTop - padBot;
+    const baseY = padTop + plotH;
+    const slotW = (W - padL - padR) / 7;
+    const barW  = Math.floor(slotW * 0.46);
+    const pace  = (perDay !== null && perDay > 0) ? perDay : 0;
+
+    // Scale off the SECOND highest day, not the highest. One lumpy day (a subscription
+    // charging, a flight) otherwise squashes the other six into slivers and the strip
+    // stops answering the question it exists for. A day that overruns the scale is drawn
+    // clipped with a chevron and always carries its real number, so nothing is hidden
+    // and the bars still start at zero, which is the part that would actually mislead.
+    const sorted = amounts.filter((a) => a > 0).sort((a, b) => b - a);
+    const softMax = Math.max(pace, sorted[1] || sorted[0] || 0, 1) * 1.2;
+
+    const bars = days.map((d, i) => {
+      const x = padL + i * slotW + (slotW - barW) / 2;
+      const label = d.date.getDate();
+      const dayName = d.date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+      let bar = "";
+      if (d.amount > 0) {
+        const clipped = d.amount > softMax;
+        const h = clipped ? plotH - 7 : Math.max(3, Math.round(plotH * d.amount / softMax));
+        const y = baseY - h;
+        const cx = x + barW / 2;
+        bar = `
+          <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="3"
+                fill="#5F6F52" opacity="${d.isToday ? "1" : "0.55"}">
+            <title>${esc(dayName)}: ${esc(fmtRM(d.amount))}</title>
+          </rect>`;
+        if (clipped) {
+          bar += `
+          <path d="M${x + 2} ${y - 4} L${cx} ${y - 8} L${x + barW - 2} ${y - 4}"
+                fill="none" stroke="#5F6F52" stroke-width="1.5" opacity="0.55"
+                stroke-linecap="round" stroke-linejoin="round"/>`;
+        }
+        // Label today, and any day that overran the scale. Never every bar.
+        if (d.isToday || clipped) {
+          bar += `
+          <text x="${cx}" y="${y - (clipped ? 13 : 5)}" text-anchor="middle" font-size="10"
+                font-weight="700" fill="${d.isToday ? "#45301E" : "#7C6A4F"}"
+                font-family="var(--body)">${Math.round(d.amount)}</text>`;
+        }
+      } else {
+        // A day with nothing logged is a real day, not missing data, so it reads as flat
+        // rather than as the dashed "no data" outline the savings chart uses.
+        bar = `<line x1="${x}" y1="${baseY}" x2="${x + barW}" y2="${baseY}"
+                     stroke="#A89A7C" stroke-width="1.5" opacity="0.5">
+                 <title>${esc(dayName)}: nothing logged</title>
+               </line>`;
+      }
+      return `<g>${bar}
+        <text x="${x + barW / 2}" y="${H - 5}" text-anchor="middle" font-size="10"
+              fill="${d.isToday ? "#45301E" : "#7C6A4F"}"
+              font-weight="${d.isToday ? "700" : "400"}" font-family="var(--body)">${label}</text>
+      </g>`;
+    }).join("");
+
+    const paceY = pace > 0 ? baseY - (plotH * pace / softMax) : null;
+    const paceEls = paceY === null ? "" : `
+      <line x1="${padL}" y1="${paceY}" x2="${W - padR + 4}" y2="${paceY}"
+            stroke="#A89A7C" stroke-width="1.5" stroke-dasharray="4 4"/>
+      <text x="${W - padR + 8}" y="${paceY + 3.5}" font-size="10" fill="#7C6A4F"
+            font-family="var(--body)">pace</text>`;
+
+    wrap.innerHTML = `
+      <span class="r-eyebrow">(last 7 days)</span>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img"
+           aria-label="Daily spending for the last seven days against the current pace">
+        <line x1="${padL}" y1="${baseY}" x2="${W - padR + 4}" y2="${baseY}"
+              stroke="#E3D7BA" stroke-width="1"/>
+        ${paceEls}
+        ${bars}
+      </svg>`;
   }
 
   // ── Savings chart (SVG, 6 months, zero-centred) ────────────
