@@ -1,0 +1,18 @@
+# Line endings: LF in the repo AND in the working tree.
+#
+# Without this, git stores whatever bytes it is given and checks out `native`,
+# which is CRLF on Windows. Since this project is edited from more than one
+# place, pinning LF keeps diffs honest instead of full of phantom whole-file
+# changes.
+#
+# Content-neutral when added, verified with `git ls-files --eol`: all 66 tracked
+# text files already read i/lf, and the two PNG icons already read i/-text.
+* text=auto eol=lf
+
+# Never let git guess on these.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
