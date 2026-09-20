@@ -167,15 +167,30 @@
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
 
+  // How much of a photo has to stay on the board once it comes to rest.
+  //
+  // Clamping a photo entirely inside the board sounds tidy and is actually the
+  // thing that made the board feel broken. On a 759px board a 317px photo could
+  // never get its left edge past (759-317)/759 = 58.2%, so the right quarter of
+  // the board was unreachable, and every drop over there snapped back to the
+  // same 58.2% every time. That was the "it goes back to the stuck place".
+  // Letting a photo hang off the edge turns that dead strip into usable space,
+  // and keeping 40% of it on the board means it is always easy to grab again.
+  const KEEP_ON_BOARD = 0.4;
+
   // Where the frame is allowed to rest once the finger lets go.
   function restingSpot(leftPx, topPx, d, frame) {
     const w = d ? d.frameW : frame.offsetWidth;
     const h = d ? d.frameH : frame.offsetHeight;
     const bw = d ? d.boardW : BOARD.getBoundingClientRect().width;
     const bh = d ? d.boardH : BOARD.getBoundingClientRect().height;
+    const keepW = w * KEEP_ON_BOARD;
+    const keepH = h * KEEP_ON_BOARD;
+    // Math.max on the upper bound guards a photo wider or taller than the
+    // board, where the range would otherwise invert and pin it at one corner.
     return {
-      left: clamp(leftPx, 0, Math.max(0, bw - w)),
-      top:  clamp(topPx,  0, Math.max(0, bh - h)),
+      left: clamp(leftPx, keepW - w, Math.max(keepW - w, bw - keepW)),
+      top:  clamp(topPx,  keepH - h, Math.max(keepH - h, bh - keepH)),
       boardW: bw, boardH: bh,
     };
   }
