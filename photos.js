@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────
-   dmico life os — Dashboard photo album (draggable pinned pictures)
+   dmico life os: Dashboard photo album (draggable pinned pictures)
    Photos are framed and pinned anywhere on the dashboard board. Drag to
    reposition; position persists as a percentage of the board so it survives
    different screen sizes. Files live in the PRIVATE Storage bucket
@@ -14,11 +14,13 @@
   const MAX_BYTES = 5 * 1024 * 1024;  // 5 MB upload cap
   const SIGN_TTL = 3600;              // signed-url lifetime (seconds)
   const FRAME_W = 150;                // frame width in px
+  const SETTLE_MS = 200;              // drop-settle animation window
   const NARROW = 560;                 // below this board width, stack instead of pin
 
   let SB = null;
   let BOARD = null;
   let topZ = 0;
+  let botZ = 0;   // lowest z in play, for send-to-back
   let drag = null; // active drag state
 
   const esc = (s) =>
@@ -73,6 +75,9 @@
     if (error) { console.error(error); return; }
     const rows = data || [];
     topZ = rows.reduce((m, r) => Math.max(m, Number(r.z_index) || 0), 0);
+    botZ = rows.length
+      ? rows.reduce((m, r) => Math.min(m, Number(r.z_index) || 0), Infinity)
+      : 0;
 
     if (!rows.length) return;
 
@@ -139,51 +144,121 @@
     return frame;
   }
 
+  // ---------------------------------------------------------------------
+  // Dragging. Two rules learned the hard way, see PRD-photo-drag-fluidity.
+  //
+  // 1. Page coordinates, never viewport ones. The old code cached the board's
+  //    getBoundingClientRect() at pointerdown and measured e.clientX against it
+  //    for the whole gesture. Both are viewport-relative, so every pixel the
+  //    page scrolled mid-drag pushed the photo one pixel away from the finger
+  //    holding it. Measured: a 350px scroll left the cursor 390px off its grab
+  //    point, which is completely off the photo. e.pageX/pageY already include
+  //    scroll, so a board origin captured once in page space stays true.
+  //
+  // 2. No clamping DURING the drag, only on drop. Clamping live looks tidy and
+  //    feels awful: the photo pins to the edge while the pointer keeps going,
+  //    so the grab offset desyncs by however far you overshot and the photo
+  //    then ignores you on the way back. Measured at 260px of dead travel.
+  //    Softening the clamp does not fix that, it only moves where it starts,
+  //    and re-anchoring the offset detaches the photo from the cursor instead.
+  //    Following the pointer exactly and clamping once on release is the only
+  //    version with no dead zone at all.
+  // ---------------------------------------------------------------------
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+
+  // Where the frame is allowed to rest once the finger lets go.
+  function restingSpot(leftPx, topPx, d, frame) {
+    const w = d ? d.frameW : frame.offsetWidth;
+    const h = d ? d.frameH : frame.offsetHeight;
+    const bw = d ? d.boardW : BOARD.getBoundingClientRect().width;
+    const bh = d ? d.boardH : BOARD.getBoundingClientRect().height;
+    return {
+      left: clamp(leftPx, 0, Math.max(0, bw - w)),
+      top:  clamp(topPx,  0, Math.max(0, bh - h)),
+      boardW: bw, boardH: bh,
+    };
+  }
+
   function attachDrag(frame, row) {
     frame.addEventListener("pointerdown", (e) => {
       if (e.target.closest(".photo-del") || e.target.closest(".photo-resize")) return;
       e.preventDefault();
-      const boardRect = BOARD.getBoundingClientRect();
+      const bRect = BOARD.getBoundingClientRect();
       const fRect = frame.getBoundingClientRect();
       drag = {
         id: row.id,
-        offsetX: e.clientX - fRect.left,
-        offsetY: e.clientY - fRect.top,
-        boardRect,
+        // Grab point, in page space.
+        offsetX: e.pageX - (fRect.left + window.scrollX),
+        offsetY: e.pageY - (fRect.top  + window.scrollY),
+        // Board origin, in page space. Valid for the whole gesture.
+        originX: bRect.left + window.scrollX,
+        originY: bRect.top  + window.scrollY,
+        boardW: bRect.width,
+        boardH: bRect.height,
+        // Frame size read ONCE. Reading offsetWidth inside pointermove forces a
+        // synchronous layout on every event, right after a style write.
+        frameW: frame.offsetWidth,
+        frameH: frame.offsetHeight,
+        x: null, y: null, raf: 0,
       };
       bringToFront(frame, row);
+      frame.classList.remove("photo-settling");
       frame.classList.add("photo-dragging");
       try { frame.setPointerCapture(e.pointerId); } catch (_) {}
     });
 
     frame.addEventListener("pointermove", (e) => {
       if (!drag || drag.id !== row.id) return;
-      const { boardRect, offsetX, offsetY } = drag;
-      let leftPx = e.clientX - boardRect.left - offsetX;
-      let topPx  = e.clientY - boardRect.top - offsetY;
-      leftPx = Math.max(0, Math.min(leftPx, boardRect.width  - frame.offsetWidth));
-      topPx  = Math.max(0, Math.min(topPx,  boardRect.height - frame.offsetHeight));
-      frame.style.left = leftPx + "px";
-      frame.style.top  = topPx + "px";
+      drag.x = e.pageX - drag.originX - drag.offsetX;
+      drag.y = e.pageY - drag.originY - drag.offsetY;
+      if (drag.raf) return;                 // one paint per frame, not per event
+      drag.raf = requestAnimationFrame(() => {
+        if (!drag || drag.id !== row.id) return;
+        drag.raf = 0;
+        frame.style.left = drag.x + "px";
+        frame.style.top  = drag.y + "px";
+      });
     });
 
     const finish = async (e) => {
       if (!drag || drag.id !== row.id) return;
-      const { boardRect } = drag;
-      const leftPx = parseFloat(frame.style.left) || 0;
-      const topPx  = parseFloat(frame.style.top)  || 0;
-      const xPct = boardRect.width  > 0 ? (leftPx / boardRect.width)  * 100 : 0;
-      const yPct = boardRect.height > 0 ? (topPx  / boardRect.height) * 100 : 0;
+      const d = drag;
+      drag = null;
+      if (d.raf) { cancelAnimationFrame(d.raf); d.raf = 0; }
+
+      // Use the last pointer position, not the last painted one, so a drop
+      // landing between frames does not lose the final few pixels.
+      const rawX = d.x != null ? d.x : (parseFloat(frame.style.left) || 0);
+      const rawY = d.y != null ? d.y : (parseFloat(frame.style.top)  || 0);
+      const spot = restingSpot(rawX, rawY, d, frame);
+
+      const xPct = spot.boardW > 0 ? (spot.left / spot.boardW) * 100 : 0;
+      const yPct = spot.boardH > 0 ? (spot.top  / spot.boardH) * 100 : 0;
+
+      // Ease back inside the board rather than teleporting.
+      if (spot.left !== rawX || spot.top !== rawY) {
+        frame.classList.add("photo-settling");
+        setTimeout(() => frame.classList.remove("photo-settling"), SETTLE_MS);
+      }
       frame.style.left = xPct + "%";
       frame.style.top  = yPct + "%";
       frame.classList.remove("photo-dragging");
-      drag = null;
       try { frame.releasePointerCapture(e.pointerId); } catch (_) {}
       row.pos_x = xPct; row.pos_y = yPct;
       await persistPosition(row.id, xPct, yPct, row.z_index);
     };
     frame.addEventListener("pointerup", finish);
     frame.addEventListener("pointercancel", finish);
+
+    // Double-click drops a photo to the back. Grabbing one already raises it,
+    // so this is the other half: it is how you reach the photo underneath
+    // without having to shove the top one out of the way first.
+    frame.addEventListener("dblclick", (e) => {
+      if (e.target.closest(".photo-del") || e.target.closest(".photo-resize")) return;
+      e.preventDefault();
+      sendToBack(frame, row);
+    });
   }
 
   function attachResize(frame, row) {
@@ -194,7 +269,12 @@
     handle.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       e.stopPropagation(); // don't start a drag
-      rs = { startX: e.clientX, startW: frame.offsetWidth };
+      rs = {
+        startX: e.pageX,
+        startW: frame.offsetWidth,
+        boardW: BOARD.getBoundingClientRect().width,
+        w: null, raf: 0,
+      };
       bringToFront(frame, row);
       frame.classList.add("photo-resizing");
       try { handle.setPointerCapture(e.pointerId); } catch (_) {}
@@ -202,20 +282,35 @@
 
     handle.addEventListener("pointermove", (e) => {
       if (!rs) return;
-      const boardW = BOARD.getBoundingClientRect().width;
-      let w = rs.startW + (e.clientX - rs.startX);
-      w = Math.max(90, Math.min(w, Math.min(600, boardW - 10)));
-      frame.style.width = w + "px";
+      rs.w = clamp(rs.startW + (e.pageX - rs.startX), 90, Math.min(600, rs.boardW - 10));
+      if (rs.raf) return;
+      rs.raf = requestAnimationFrame(() => {
+        if (!rs) return;
+        rs.raf = 0;
+        frame.style.width = rs.w + "px";
+      });
     });
 
     const done = async (e) => {
       if (!rs) return;
+      const r = rs;
       rs = null;
+      if (r.raf) { cancelAnimationFrame(r.raf); r.raf = 0; }
+      if (r.w != null) frame.style.width = r.w + "px";
       frame.classList.remove("photo-resizing");
       try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+
+      // A wider photo can now stick out past the board edge, so re-seat it.
       const w = Math.round(frame.offsetWidth);
       row.width = w;
+      const spot = restingSpot(frame.offsetLeft, frame.offsetTop, null, frame);
+      const xPct = spot.boardW > 0 ? (spot.left / spot.boardW) * 100 : 0;
+      const yPct = spot.boardH > 0 ? (spot.top  / spot.boardH) * 100 : 0;
+      frame.style.left = xPct + "%";
+      frame.style.top  = yPct + "%";
+      row.pos_x = xPct; row.pos_y = yPct;
       await persistSize(row.id, w, row.z_index);
+      await persistPosition(row.id, xPct, yPct, row.z_index);
     };
     handle.addEventListener("pointerup", done);
     handle.addEventListener("pointercancel", done);
@@ -227,11 +322,41 @@
     frame.style.zIndex = String(topZ);
   }
 
+  // Negative z-index would paint the frame behind the page background, because
+  // .dash-board is positioned but opens no stacking context. So the floor is 1,
+  // and when we run out of room underneath we spread everyone out again.
+  function sendToBack(frame, row) {
+    if (botZ <= 1) { rebaseZ(); }
+    botZ -= 1;
+    row.z_index = botZ;
+    frame.style.zIndex = String(botZ);
+    persistZ(row.id, botZ);
+  }
+
+  function rebaseZ() {
+    const frames = [...BOARD.querySelectorAll(".photo-frame")]
+      .sort((p, q) => (Number(p.style.zIndex) || 0) - (Number(q.style.zIndex) || 0));
+    frames.forEach((f, i) => {
+      const z = (i + 1) * 10;
+      f.style.zIndex = String(z);
+      if (f.dataset.id) persistZ(f.dataset.id, z);
+    });
+    botZ = 10;
+    topZ = frames.length * 10;
+  }
+
   async function persistPosition(id, xPct, yPct, z) {
     const { error } = await SB.from("dashboard_photos")
       .update({ pos_x: xPct, pos_y: yPct, z_index: z })
       .eq("id", id);
     if (error) console.error("persist position failed", error);
+  }
+
+  async function persistZ(id, z) {
+    const { error } = await SB.from("dashboard_photos")
+      .update({ z_index: z })
+      .eq("id", id);
+    if (error) console.error("persist z failed", error);
   }
 
   async function persistSize(id, width, z) {

@@ -1124,6 +1124,12 @@ input, button { font-family: inherit; }
   cursor: grabbing;
   box-shadow: 0 6px 22px rgba(69, 48, 30, 0.22);
 }
+/* Only while settling back inside the board after a drop. Never during the
+   drag itself: a transition on left/top would make every move lag a frame
+   behind the finger, which is the exact feeling we are removing. */
+.photo-frame.photo-settling {
+  transition: left 0.14s ease-out, top 0.14s ease-out;
+}
 .photo-img {
   display: block;
   width: 100%;
