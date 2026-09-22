@@ -303,7 +303,12 @@
     // This month figures.
     const income          = thisMonthIncome ? Number(thisMonthIncome.amount) : 0;
     const surplusThisMonth = thisSurplus.reduce((s, r) => s + Number(r.amount), 0);
-    const totalIncomeThisMonth = income + surplusThisMonth;
+    // There is deliberately no combined income figure here. Extra income feeds net
+    // savings (see monthlySavings above, where totalIn includes surplusAmt) and it is
+    // reported in the committed block, but it does NOT raise the steerable headroom.
+    // A windfall is money he already has, not permission to spend more this month, and
+    // the surplus row does not record whether it was stashed into a savings pool, so
+    // the hub cannot tell an earmarked gift from free cash. Report it, do not spend it.
     const thisMonthExp    = monthlySavings.find(
       (m) => m.year === thisYear && m.month === thisMonth
     )?.expenses ?? 0;
@@ -569,6 +574,7 @@
       available: availableToSteer,
       fixedShare: fixedShare,
       limitOverAvailable: limitOverAvailable,
+      surplus: surplusThisMonth,
     });
   }
 
@@ -638,7 +644,8 @@
           <span class="r-eyebrow">(committed)</span>
           <button class="r-mini fin-commit-edit-btn">Edit commitments</button>
         </div>
-        <p class="fin-committed-empty">Nothing committed yet. Subscriptions come from the Subscriptions tab; rent and anything else fixed goes in here.</p>`;
+        <p class="fin-committed-empty">Nothing committed yet. Subscriptions come from the Subscriptions tab; rent and anything else fixed goes in here.</p>
+        ${(opts && opts.surplus > 0) ? `<p class="fin-committed-extra">+ ${fmtRM(opts.surplus)} extra income this month. It adds to your savings, not to your steerable limit.</p>` : ""}`;
       section.querySelector(".fin-commit-edit-btn")
         .addEventListener("click", () => openCommitmentsEditor(section, (opts && opts.commitItems) || []));
       return;
@@ -674,6 +681,7 @@
     const warn        = opts && opts.limitOverAvailable;
     const landed      = (opts && opts.landed) || 0;
     const commitItems = (opts && opts.commitItems) || [];
+    const surplus     = (opts && opts.surplus) || 0;
 
     // Stated commitments (rent and anything else fixed that is not a subscription) are
     // listed above the subscription rows. They carry no renewal date because they are a
@@ -697,6 +705,7 @@
       </div>
       ${available != null ? `<p class="fin-committed-avail">${fmtRM(available)} available to steer.</p>` : ""}
       ${fixedTotal > 0 ? `<p class="fin-committed-avail">${fmtRM(landed)} of it has left the account so far.</p>` : ""}
+      ${surplus > 0 ? `<p class="fin-committed-extra">+ ${fmtRM(surplus)} extra income this month. It adds to your savings, not to your steerable limit.</p>` : ""}
       ${warn ? `<p class="fin-committed-warn">Your limit is ${fmtRM(warn.limit)} but ${fmtRM(warn.available)} is available after commitments.</p>` : ""}
       ${commitRows}${rows}`;
 

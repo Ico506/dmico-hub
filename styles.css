@@ -4142,6 +4142,12 @@ details[open] .fin-ov-hist-toggle::before { content: "▾  "; }
 /* Commitments: reported facts, never advice. `avail` is the number he can actually
    steer; `warn` states plainly when the limit exceeds what is left after commitments. */
 .fin-committed-avail { font-size: 13px; color: var(--ink-soft); margin: 6px 0 0; }
+/* Extra income reads as a credit, so it gets the accent rather than the muted
+   ink the commitment lines use. It sits under 'available to steer' because that
+   is where you look when you have just logged a windfall. */
+.fin-committed-extra {
+  font-size: 13px; color: var(--accent-deep); margin: 6px 0 0; line-height: 1.5;
+}
 .fin-committed-warn {
   font-size: 13px; color: var(--clay); margin: 6px 0 0; line-height: 1.5;
 }
